@@ -5,6 +5,7 @@ import os
 import whisper
 from jiwer import wer
 from fastapi.staticfiles import StaticFiles
+import database
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -36,7 +37,7 @@ async def transcrever_audio(nome_arquivo: str):
     return {"arquivo": nome_arquivo, "transcricao": resultado["text"]}
 
 @app.post("/pontuar")
-async def pontuar(nome_arquivo: str, musica_id: str):
+async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
     caminho_audio = os.path.join("audios", nome_arquivo)
     caminho_letra = os.path.join("letras", f"{musica_id}.txt")
 
@@ -51,13 +52,17 @@ async def pontuar(nome_arquivo: str, musica_id: str):
 
     erro = wer(normalizar(letra_referencia), normalizar(transcricao))
     pontuacao = max(0, (1 - erro) * 100)
+    pontuacao = round(pontuacao, 2)
+
+    database.salvar_performance(usuario, musica_id, nome_arquivo, transcricao, pontuacao)
 
     return {
+        "usuario": usuario,
         "musica_id": musica_id,
         "transcricao": transcricao,
         "letra_referencia": letra_referencia,
         "wer": erro,
-        "pontuacao": round(pontuacao, 2)
+        "pontuacao": pontuacao
     }
 
 @app.get("/musicas")
@@ -65,3 +70,14 @@ def listar_musicas():
     arquivos = os.listdir("letras")
     musicas = [nome.replace(".txt", "") for nome in arquivos if nome.endswith(".txt")]
     return {"musicas": musicas}
+
+@app.get("/historico")
+def historico(usuario: str = None, limite: int = 5):
+    dados = database.listar_historico(usuario_nome=usuario, limite=limite)
+    resultado = []
+    for linha in dados:
+        if usuario:
+            resultado.append({"musica_id": linha[0], "pontuacao": linha[1], "data": linha[2]})
+        else:
+            resultado.append({"usuario": linha[0], "musica_id": linha[1], "pontuacao": linha[2], "data": linha[3]})
+    return {"historico": resultado}
