@@ -94,3 +94,10 @@ def historico(usuario: str = None, limite: int = 5):
         else:
             resultado.append({"usuario": linha[0], "musica_id": linha[1], "pontuacao": linha[2], "data": linha[3]})
     return {"historico": resultado}
+
+
+@app.get("/ranking")
+def ranking(limite: int = 10):
+    dados = database.ranking_usuarios(limite=limite)
+    resultado = [{"usuario": linha[0], "melhor_pontuacao": linha[1]} for linha in dados]
+    return {"ranking": resultado}

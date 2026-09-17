@@ -122,3 +122,19 @@ def listar_historico(usuario=None, limite=10):
     resultado = cursor.fetchall()
     conexao.close()
     return resultado
+
+
+def ranking_usuarios(limite=10):
+    conexao = conectar()
+    cursor = conexao.cursor()
+    cursor.execute("""
+        SELECT u.nome, MAX(p.pontuacao) AS melhor_pontuacao
+        FROM performances p
+        JOIN usuarios u ON u.id = p.usuario_id
+        GROUP BY u.id
+        ORDER BY melhor_pontuacao DESC
+        LIMIT ?
+    """, (limite,))
+    resultado = cursor.fetchall()
+    conexao.close()
+    return resultado
