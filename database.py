@@ -1,10 +1,8 @@
 import sqlite3
 
-BANCO = "singai.db"
-
 
 def conectar():
-    return sqlite3.connect(BANCO)
+    return sqlite3.connect("singai.db")
 
 
 def criar_tabelas():
@@ -21,9 +19,8 @@ def criar_tabelas():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS musicas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL UNIQUE,
-            arquivo_letra TEXT NOT NULL,
-            arquivo_instrumental TEXT
+            titulo TEXT NOT NULL,
+            artista TEXT
         )
     """)
 
@@ -34,7 +31,7 @@ def criar_tabelas():
             musica_id INTEGER NOT NULL,
             arquivo_audio TEXT NOT NULL,
             transcricao TEXT,
-            pontuacao REAL NOT NULL,
+            pontuacao REAL,
             data TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
             FOREIGN KEY (musica_id) REFERENCES musicas(id)
@@ -45,45 +42,48 @@ def criar_tabelas():
     conexao.close()
 
 
-def obter_ou_criar_usuario(nome):
+def buscar_ou_criar_usuario(nome):
     conexao = conectar()
     cursor = conexao.cursor()
+
     cursor.execute("SELECT id FROM usuarios WHERE nome = ?", (nome,))
-    linha = cursor.fetchone()
-    if linha:
-        usuario_id = linha[0]
+    resultado = cursor.fetchone()
+
+    if resultado:
+        usuario_id = resultado[0]
     else:
         cursor.execute("INSERT INTO usuarios (nome) VALUES (?)", (nome,))
         conexao.commit()
         usuario_id = cursor.lastrowid
+
     conexao.close()
     return usuario_id
 
 
-def obter_ou_criar_musica(musica_slug):
-    """musica_slug é o id usado nos arquivos (ex: 'dom_quixote'),
-    que também é o nome do arquivo de letra em letras/."""
+def buscar_ou_criar_musica(titulo, artista=None):
     conexao = conectar()
     cursor = conexao.cursor()
-    cursor.execute("SELECT id FROM musicas WHERE nome = ?", (musica_slug,))
-    linha = cursor.fetchone()
-    if linha:
-        musica_id = linha[0]
+
+    cursor.execute("SELECT id FROM musicas WHERE titulo = ?", (titulo,))
+    resultado = cursor.fetchone()
+
+    if resultado:
+        musica_id = resultado[0]
     else:
-        arquivo_letra = f"{musica_slug}.txt"
         cursor.execute(
-            "INSERT INTO musicas (nome, arquivo_letra) VALUES (?, ?)",
-            (musica_slug, arquivo_letra)
+            "INSERT INTO musicas (titulo, artista) VALUES (?, ?)",
+            (titulo, artista)
         )
         conexao.commit()
         musica_id = cursor.lastrowid
+
     conexao.close()
     return musica_id
 
 
-def salvar_performance(usuario_nome, musica_slug, arquivo_audio, transcricao, pontuacao):
-    usuario_id = obter_ou_criar_usuario(usuario_nome)
-    musica_id = obter_ou_criar_musica(musica_slug)
+def salvar_performance(usuario, musica_titulo, arquivo_audio, transcricao, pontuacao, artista=None):
+    usuario_id = buscar_ou_criar_usuario(usuario)
+    musica_id = buscar_ou_criar_musica(musica_titulo, artista)
 
     conexao = conectar()
     cursor = conexao.cursor()
@@ -95,33 +95,30 @@ def salvar_performance(usuario_nome, musica_slug, arquivo_audio, transcricao, po
     conexao.close()
 
 
-def listar_historico(usuario_nome=None, limite=10):
+def listar_historico(usuario=None, limite=10):
     conexao = conectar()
     cursor = conexao.cursor()
 
-    if usuario_nome:
+    if usuario:
         cursor.execute("""
-            SELECT musicas.nome, performances.pontuacao, performances.data
-            FROM performances
-            JOIN musicas ON performances.musica_id = musicas.id
-            JOIN usuarios ON performances.usuario_id = usuarios.id
-            WHERE usuarios.nome = ?
-            ORDER BY performances.data DESC
+            SELECT m.titulo, p.pontuacao, p.data
+            FROM performances p
+            JOIN usuarios u ON u.id = p.usuario_id
+            JOIN musicas m ON m.id = p.musica_id
+            WHERE u.nome = ?
+            ORDER BY p.data DESC
             LIMIT ?
-        """, (usuario_nome, limite))
+        """, (usuario, limite))
     else:
         cursor.execute("""
-            SELECT usuarios.nome, musicas.nome, performances.pontuacao, performances.data
-            FROM performances
-            JOIN musicas ON performances.musica_id = musicas.id
-            JOIN usuarios ON performances.usuario_id = usuarios.id
-            ORDER BY performances.data DESC
+            SELECT u.nome, m.titulo, p.pontuacao, p.data
+            FROM performances p
+            JOIN usuarios u ON u.id = p.usuario_id
+            JOIN musicas m ON m.id = p.musica_id
+            ORDER BY p.data DESC
             LIMIT ?
         """, (limite,))
 
     resultado = cursor.fetchall()
     conexao.close()
     return resultado
-
-
-criar_tabelas()

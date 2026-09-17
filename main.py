@@ -10,8 +10,15 @@ import database
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+@app.on_event("startup")
+def iniciar_banco():
+    database.criar_tabelas()
+
+
 # Carrega o modelo UMA vez, quando o servidor sobe
 modelo_whisper = whisper.load_model("medium")
+
 
 def normalizar(texto: str) -> str:
     texto = texto.lower()
@@ -19,9 +26,11 @@ def normalizar(texto: str) -> str:
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
 
+
 @app.get("/")
 def home():
     return {"status": "SingAI backend rodando"}
+
 
 @app.post("/gravar")
 async def receber_audio(audio: UploadFile = File(...)):
@@ -30,11 +39,13 @@ async def receber_audio(audio: UploadFile = File(...)):
         shutil.copyfileobj(audio.file, buffer)
     return {"mensagem": "Áudio recebido com sucesso", "arquivo": audio.filename}
 
+
 @app.post("/transcrever")
 async def transcrever_audio(nome_arquivo: str):
     caminho = os.path.join("audios", nome_arquivo)
     resultado = modelo_whisper.transcribe(caminho, language="pt")
     return {"arquivo": nome_arquivo, "transcricao": resultado["text"]}
+
 
 @app.post("/pontuar")
 async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
@@ -65,15 +76,17 @@ async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
         "pontuacao": pontuacao
     }
 
+
 @app.get("/musicas")
 def listar_musicas():
     arquivos = os.listdir("letras")
     musicas = [nome.replace(".txt", "") for nome in arquivos if nome.endswith(".txt")]
     return {"musicas": musicas}
 
+
 @app.get("/historico")
 def historico(usuario: str = None, limite: int = 5):
-    dados = database.listar_historico(usuario_nome=usuario, limite=limite)
+    dados = database.listar_historico(usuario=usuario, limite=limite)
     resultado = []
     for linha in dados:
         if usuario:
