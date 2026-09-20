@@ -69,9 +69,11 @@ function abrirModal(musica) {
   const player = document.getElementById("playerMusica");
   if (musicaAtual && player) {
     player.src = `/musica-audio/${musicaAtual}`;
-    player.play().catch(() => {
+    player.load(); // força o navegador a recarregar a nova fonte (necessário ao trocar o src de um <audio> já usado)
+    player.play().catch((erro) => {
       // Alguns navegadores bloqueiam autoplay sem interação prévia do usuário;
       // nesse caso os controles do player permitem apertar play manualmente.
+      console.warn("Não foi possível iniciar o áudio automaticamente:", erro);
     });
   }
 }
