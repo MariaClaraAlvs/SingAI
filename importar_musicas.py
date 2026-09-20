@@ -26,8 +26,20 @@ INFO_MUSICAS = {
 
 
 def garantir_colunas(conn):
-    """Garante que a tabela musicas tenha as colunas necessárias."""
+    """Garante que a tabela musicas exista e tenha as colunas necessárias."""
     cursor = conn.cursor()
+
+    # Cria a tabela se ainda não existir (mesma estrutura do database.py)
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS musicas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            artista TEXT
+        )
+        """
+    )
+
     cursor.execute("PRAGMA table_info(musicas)")
     colunas_existentes = {row[1] for row in cursor.fetchall()}
 
