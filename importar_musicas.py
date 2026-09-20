@@ -20,8 +20,21 @@ BANCO = "banco.db"
 
 # Preencha aqui se quiser título/artista customizados.
 # Chave = nome do arquivo sem extensão (igual em audios/ e letras/)
-INFO_MUSICAS = {
-    # "musica1": {"titulo": "Nome da Música", "artista": "Nome do Artista"},
+NFO_MUSICAS = {
+    "amorhospitalar":     {"titulo": "Amor Hospitalar", "artista": "Luchaos"},
+    "barbiegirl":         {"titulo": "Barbie Girl", "artista": "Aqua"},
+    "epitafio":           {"titulo": "Epitáfio", "artista": "Titãs"},
+    "eyeofthetiger":      {"titulo": "Eye of the Tiger", "artista": "Survivor"},
+    "likeastone":         {"titulo": "Like a Stone", "artista": "Audioslave"},
+    "meninaveneno":       {"titulo": "Menina Veneno", "artista": "Ritchie"},
+    "pescadordeilusoes":  {"titulo": "Pescador de Ilusões", "artista": "O Rappa"},
+    "rapdaakatsuki":      {"titulo": "Rap da Akatsuki", "artista": "7Minutoz"},
+    "snow":               {"titulo": "Snow (hey oh)", "artista": "Red Hot Chilli Peppers"},
+    "soniferailha":       {"titulo": "Sonífera Ilha", "artista": "Titãs"},
+    "takeonme":           {"titulo": "Take On Me", "artista": "a-ha"},
+    "tempoperdido":       {"titulo": "Tempo Perdido", "artista": "Legião Urbana"},
+    "terradegigantes":    {"titulo": "Terra de Gigantes", "artista": "Engenheiros do Hawaii"},
+    "vienna":             {"titulo": "Vienna", "artista": "Billy Joel"},
 }
 
 
