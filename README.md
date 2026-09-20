@@ -12,6 +12,8 @@ o que já foi feito até agora.
     ├── main.py                → backend (FastAPI) com todas as rotas
     ├── database.py            → funções de acesso ao banco de dados (SQLite)
     ├── singai.db              → arquivo do banco de dados (criado automaticamente)
+    ├── importar_musicas.py    → script que popula a tabela `musicas` a partir de musicas/ e letras/
+    ├── musicas/                → MP3s originais do catálogo (as músicas em si, não as gravações)
     ├── audios/                → áudios gravados pelos usuários
     ├── letras/                → letras de referência de cada música (.txt)
     ├── docs/
@@ -20,6 +22,8 @@ o que já foi feito até agora.
         ├── index.html          → estrutura da interface
         ├── style.css           → visual (cores, layout)
         └── app.js              → lógica da interface (gravação, catálogo, modal)
+
+> **Atenção pra não confundir:** `musicas/` guarda os MP3 originais do catálogo (o que a pessoa vai cantar em cima); `audios/` guarda as gravações que os próprios usuários fazem ao cantar. São pastas diferentes, apesar do nome parecido.
 
 ------------------------------------------------------------------------
 
@@ -157,6 +161,8 @@ O banco é relacional: existem três tabelas, com `usuarios` e `musicas` sendo r
 | `id` | INTEGER | Chave primária, autoincremento |
 | `titulo` | TEXT | Título da música |
 | `artista` | TEXT | Artista (opcional) |
+| `caminho_audio` | TEXT | Caminho do MP3 original em `musicas/` |
+| `caminho_letra` | TEXT | Caminho do `.txt` da letra em `letras/` (pode ficar em branco até a letra ser adicionada) |
 
 ### 5.3 Tabela `performances`
 
@@ -179,6 +185,15 @@ Registra cada vez que um usuário canta uma música:
 - `salvar_performance(usuario, musica_titulo, arquivo_audio, transcricao, pontuacao, artista=None)` — resolve os IDs de usuário e música por trás dos panos (chamando as duas funções acima) e insere a performance.
 - `listar_historico(usuario=None, limite=10)` — retorna o histórico já com `JOIN`, trazendo o nome do usuário e o título da música em vez dos IDs.
 
+### 5.5 Importação do catálogo (`importar_musicas.py`)
+
+Script separado (fora do `main.py`) que popula a tabela `musicas` a partir das pastas `musicas/` (MP3s) e `letras/` (`.txt`):
+
+- Varre `musicas/`, casa cada MP3 com o `.txt` de mesmo nome em `letras/`.
+- Se a letra ainda não existir, importa a música mesmo assim com `caminho_letra` em branco.
+- Roda quantas vezes for preciso: pula o que já está no banco e completa `caminho_letra` das músicas que ganharam letra depois.
+- Uso: `python importar_musicas.py`, com o venv ativado, na raiz do projeto.
+
 A integração com a pontuação já foi realizada: `salvar_performance()` é usado para registrar os resultados das performances. Ao escolher uma música, a interface pede o nome do usuário de forma simples e esse nome é salvo junto com o resultado. O painel **Últimas músicas** já mostra a porcentagem de acerto e o usuário que realizou cada performance.
 
 > **Nota sobre nomenclatura:** o `musica_id` que circula pelo `main.py` e pelo `app.js` (parâmetro das rotas, nome de arquivo de áudio) é, na prática, o *slug* do arquivo de letra (ex: `"dom_quixote"`), não o `id` numérico da tabela `musicas`. São dois conceitos com nome parecido — vale ter isso em mente ao mexer no código.
@@ -192,21 +207,28 @@ A integração com a pontuação já foi realizada: `salvar_performance()` é us
 
 ## 6. Catálogo de músicas
 
-Até o momento, o catálogo possui apenas uma música: **Dom Quixote**.
+Até o momento, o catálogo tem **15 músicas** com áudio em `musicas/`,
+sendo que **14 já têm letra** correspondente em `letras/` (falta 1
+letra ainda).
 
-Cada música precisa de um arquivo `.txt` dentro de `letras/`, com o nome
-no padrão `id_da_musica.txt` (minúsculo, sem espaço, use `_` no lugar de
-espaço). O id do arquivo é o que aparece na rota `/musicas` e é usado
-para os áudios também.
+Cada música precisa de um MP3 em `musicas/` e, idealmente, um `.txt`
+com a letra em `letras/`, ambos com o **mesmo nome de arquivo**
+(minúsculo, sem espaço, use `_` no lugar de espaço) — esse nome é o
+mesmo id usado pela rota `/musicas` e pelos áudios.
 
-Atualmente:
+Pra colocar essas músicas no banco (tabela `musicas`), roda o script de
+importação em vez de editar o banco na mão:
 
-    letras/
-    └── dom_quixote.txt
+``` bash
+python importar_musicas.py
+```
 
-**Ainda faltando:** adicionar as demais letras do catálogo (a ideia é
-ter por volta de 10 músicas) e conseguir os áudios reais cantando cada
-uma, para validar o sistema por completo.
+Ele lê o que tem em `musicas/` e `letras/` e insere/atualiza a tabela
+`musicas` sozinho — inclusive a música que ainda não tem letra, que
+fica registrada com `caminho_letra` em branco até o `.txt` chegar.
+
+**Ainda faltando:** a letra da música que falta e sincronizar letra +
+música por tempo (ver item 10).
 
 ------------------------------------------------------------------------
 
@@ -312,19 +334,19 @@ Exemplos de mensagens de commit: `"Adiciona rota de histórico"`,
     *.pyc
     .DS_Store
 
-**Atenção:** `singai.db` (banco) e os arquivos de `audios/` **entram**
-no Git normalmente. Como são arquivos binários, se os dois
-editarem/gravarem ao mesmo tempo pode dar conflito que precisa ser
-resolvido manualmente --- vale avisar um ao outro antes de mexer nessas
-partes.
+**Atenção:** `singai.db` (banco) e os arquivos de `audios/` e
+`musicas/` **entram** no Git normalmente. Como são arquivos binários,
+se os dois editarem/gravarem ao mesmo tempo pode dar conflito que
+precisa ser resolvido manualmente --- vale avisar um ao outro antes de
+mexer nessas partes.
 
 ------------------------------------------------------------------------
 
 ## 10. Roteiro do que falta (visão geral)
 
 1. Continuar a evolução do banco de dados conforme surgirem novas consultas e necessidades do sistema
-2. Adicionar as letras restantes no catálogo
-3. Conseguir os áudios reais cantando cada música
+2. Adicionar a letra que ainda falta no catálogo (14/15 concluídas)
+3. ~~Conseguir os áudios reais cantando cada música~~ — concluído, 15 músicas em `musicas/`
 4. Integrar o CREPE para a pontuação de afinação (evolução final, conforme o relatório)
 5. Sincronizar a letra e a música para o usuário cantar acompanhando o instrumental
 6. Futuramente, avaliar a troca do Whisper `medium` por um modelo maior e permitir outros idiomas retirando a configuração fixa `language="pt"`
