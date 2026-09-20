@@ -1,5 +1,6 @@
 import re
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse
 import shutil
 import os
 import whisper
@@ -82,6 +83,18 @@ def listar_musicas():
     arquivos = os.listdir("letras")
     musicas = [nome.replace(".txt", "") for nome in arquivos if nome.endswith(".txt")]
     return {"musicas": musicas}
+
+
+# NOVA ROTA: entrega o MP3 original do catálogo (pasta musicas/) pro navegador tocar.
+# Procura pelo musica_id em algumas extensões, já que o formato pode variar.
+@app.get("/musica-audio/{musica_id}")
+def obter_audio_musica(musica_id: str):
+    extensoes = (".mp3", ".wav", ".m4a")
+    for extensao in extensoes:
+        caminho = os.path.join("musicas", musica_id + extensao)
+        if os.path.exists(caminho):
+            return FileResponse(caminho)
+    return {"erro": f"Áudio de '{musica_id}' não encontrado em musicas/"}
 
 
 @app.get("/historico")

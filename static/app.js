@@ -63,10 +63,28 @@ function abrirModal(musica) {
     document.getElementById("listaMusicas").value = musica;
   }
   document.getElementById("resultado").textContent = "Escolha uma música e comece a gravar!";
+
+  // Carrega e toca o áudio original da música selecionada
+  const musicaAtual = musica || document.getElementById("listaMusicas").value;
+  const player = document.getElementById("playerMusica");
+  if (musicaAtual && player) {
+    player.src = `/musica-audio/${musicaAtual}`;
+    player.play().catch(() => {
+      // Alguns navegadores bloqueiam autoplay sem interação prévia do usuário;
+      // nesse caso os controles do player permitem apertar play manualmente.
+    });
+  }
 }
 
 function fecharModal() {
   document.getElementById("modalFundo").classList.remove("aberto");
+
+  // Para a música ao fechar o modal
+  const player = document.getElementById("playerMusica");
+  if (player) {
+    player.pause();
+    player.currentTime = 0;
+  }
 }
 
 async function iniciarGravacao() {
