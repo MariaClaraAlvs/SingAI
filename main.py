@@ -3,6 +3,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 import shutil
 import os
+import sqlite3
 import whisper
 from jiwer import wer
 from fastapi.staticfiles import StaticFiles
@@ -80,8 +81,35 @@ async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
 
 @app.get("/musicas")
 def listar_musicas():
-    arquivos = os.listdir("letras")
-    musicas = [nome.replace(".txt", "") for nome in arquivos if nome.endswith(".txt")]
+    # ids a partir dos arquivos de letra e de áudio (cobre música sem letra ainda)
+    ids = set()
+    if os.path.isdir("letras"):
+        ids.update(nome.replace(".txt", "") for nome in os.listdir("letras") if nome.endswith(".txt"))
+    if os.path.isdir("musicas"):
+        ids.update(os.path.splitext(nome)[0] for nome in os.listdir("musicas"))
+
+    # título/artista reais, vindos do banco (casando pelo caminho_audio)
+    mapa_info = {}
+    conn = sqlite3.connect("singai.db")
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT titulo, artista, caminho_audio FROM musicas")
+        for titulo, artista, caminho_audio in cursor.fetchall():
+            if caminho_audio:
+                slug = os.path.splitext(os.path.basename(caminho_audio))[0]
+                mapa_info[slug] = {"titulo": titulo, "artista": artista}
+    finally:
+        conn.close()
+
+    musicas = []
+    for slug in sorted(ids):
+        info = mapa_info.get(slug, {})
+        musicas.append({
+            "id": slug,
+            "titulo": info.get("titulo") or slug.replace("_", " ").title(),
+            "artista": info.get("artista"),
+        })
+
     return {"musicas": musicas}
 
 

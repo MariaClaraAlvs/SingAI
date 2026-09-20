@@ -17,15 +17,15 @@ async function carregarMusicas() {
     const card = document.createElement("div");
     card.className = "musica-card";
     card.innerHTML = `
-      <div class="capa ${classeCor(index)}">${musica.charAt(0).toUpperCase()}</div>
-      <div class="nome">${musica.replace(/_/g, " ")}</div>
+      <div class="capa ${classeCor(index)}">${musica.titulo.charAt(0).toUpperCase()}</div>
+      <div class="nome">${musica.titulo}</div>
     `;
-    card.addEventListener("click", () => abrirModal(musica));
+    card.addEventListener("click", () => abrirModal(musica.id));
     catalogo.appendChild(card);
 
     const opcao = document.createElement("option");
-    opcao.value = musica;
-    opcao.textContent = musica.replace(/_/g, " ");
+    opcao.value = musica.id;
+    opcao.textContent = musica.titulo;
     select.appendChild(opcao);
   });
 }
