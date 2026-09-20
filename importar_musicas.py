@@ -20,7 +20,7 @@ BANCO = "banco.db"
 
 # Preencha aqui se quiser título/artista customizados.
 # Chave = nome do arquivo sem extensão (igual em audios/ e letras/)
-NFO_MUSICAS = {
+INFO_MUSICAS = {
     "amorhospitalar":     {"titulo": "Amor Hospitalar", "artista": "Luchaos"},
     "barbiegirl":         {"titulo": "Barbie Girl", "artista": "Aqua"},
     "epitafio":           {"titulo": "Epitáfio", "artista": "Titãs"},
