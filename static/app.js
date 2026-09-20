@@ -245,5 +245,9 @@ document.getElementById("perfilNome").addEventListener("keydown", (evento) => {
   if (evento.key === "Enter") verPerfil();
 });
 
+document.getElementById("btnComecarCantar").addEventListener("click", () => {
+  document.getElementById("telaAbertura").classList.add("saindo");
+});
+
 carregarMusicas();
 carregarHistorico();
