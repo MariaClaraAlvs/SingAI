@@ -38,6 +38,7 @@ INFO_MUSICAS = {
     "tempoperdido":       {"titulo": "Tempo Perdido", "artista": "Legião Urbana"},
     "terradegigantes":    {"titulo": "Terra de Gigantes", "artista": "Engenheiros do Hawaii"},
     "vienna":             {"titulo": "Vienna", "artista": "Billy Joel"},
+    "zoiodelula":         {"titulo": "Zóio de lula", "artista": "Charlie Brown Jr."},
 }
 
 def garantir_colunas(conn):
