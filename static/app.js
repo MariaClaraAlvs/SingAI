@@ -6,6 +6,20 @@ function classeCor(index) {
   return `c${index % 5}`;
 }
 
+function handleCapaError(img, letra) {
+  // Se a imagem da capa não existir, volta pro fallback com a letra inicial
+  const capa = img.parentElement;
+  capa.innerHTML = letra;
+}
+
+function capaHTML(identificador, letra, index) {
+  return `
+    <div class="capa ${classeCor(index)}">
+      <img src="/static/capas/${identificador}.jpg" alt="${letra}" onerror="handleCapaError(this, '${letra}')">
+    </div>
+  `;
+}
+
 async function carregarMusicas() {
   const resposta = await fetch("/musicas");
   const dados = await resposta.json();
@@ -17,7 +31,7 @@ async function carregarMusicas() {
     const card = document.createElement("div");
     card.className = "musica-card";
     card.innerHTML = `
-      <div class="capa ${classeCor(index)}">${musica.titulo.charAt(0).toUpperCase()}</div>
+      ${capaHTML(musica.id, musica.titulo.charAt(0).toUpperCase(), index)}
       <div class="nome">${musica.titulo}</div>
     `;
     card.addEventListener("click", () => abrirModal(musica.id));
@@ -45,7 +59,7 @@ async function carregarHistorico() {
     const div = document.createElement("div");
     div.className = "historico-item";
     div.innerHTML = `
-      <div class="historico-capa ${classeCor(index)}">${item.musica_id.charAt(0).toUpperCase()}</div>
+      ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index)}
       <div class="historico-info">
         <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
         <div style="font-size:0.75rem; opacity:0.6;">${item.usuario}</div>
@@ -205,7 +219,7 @@ async function verPerfil() {
   dados.historico.forEach((item, index) => {
     html += `
       <div class="historico-item">
-        <div class="historico-capa ${classeCor(index)}">${item.musica_id.charAt(0).toUpperCase()}</div>
+        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index)}
         <div class="historico-info">
           <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
           <div class="barra"><div class="barra-preenchida ${classeCor(index)}" style="width:${item.pontuacao}%"></div></div>

@@ -564,3 +564,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 #resultado b { color: #FF6B6B; }
+
+.capa img,
+.historico-capa img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
