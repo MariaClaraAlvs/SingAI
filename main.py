@@ -19,7 +19,7 @@ def iniciar_banco():
 
 
 # Carrega o modelo UMA vez, quando o servidor sobe
-modelo_whisper = whisper.load_model("medium")
+modelo_whisper = whisper.load_model("turbo")
 
 
 def normalizar(texto: str) -> str:
@@ -45,7 +45,7 @@ async def receber_audio(audio: UploadFile = File(...)):
 @app.post("/transcrever")
 async def transcrever_audio(nome_arquivo: str):
     caminho = os.path.join("audios", nome_arquivo)
-    resultado = modelo_whisper.transcribe(caminho, language="pt")
+    resultado = modelo_whisper.transcribe(caminho)
     return {"arquivo": nome_arquivo, "transcricao": resultado["text"]}
 
 
@@ -57,7 +57,7 @@ async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
     if not os.path.exists(caminho_letra):
         return {"erro": f"Música '{musica_id}' não encontrada no catálogo"}
 
-    resultado = modelo_whisper.transcribe(caminho_audio, language="pt")
+    resultado = modelo_whisper.transcribe(caminho_audio)
     transcricao = resultado["text"]
 
     with open(caminho_letra, "r", encoding="utf-8") as f:
