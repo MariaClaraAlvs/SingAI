@@ -12,9 +12,9 @@ function handleCapaError(img, letra) {
   capa.innerHTML = letra;
 }
 
-function capaHTML(identificador, letra, index) {
+function capaHTML(identificador, letra, index, classeBase = "capa") {
   return `
-    <div class="capa ${classeCor(index)}">
+    <div class="${classeBase} ${classeCor(index)}">
       <img src="/static/capas/${identificador}.jpg" alt="${letra}" onerror="handleCapaError(this, '${letra}')">
     </div>
   `;
@@ -59,7 +59,7 @@ async function carregarHistorico() {
     const div = document.createElement("div");
     div.className = "historico-item";
     div.innerHTML = `
-      ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index)}
+      ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index, "historico-capa")}
       <div class="historico-info">
         <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
         <div style="font-size:0.75rem; opacity:0.6;">${item.usuario}</div>
@@ -219,7 +219,7 @@ async function verPerfil() {
   dados.historico.forEach((item, index) => {
     html += `
       <div class="historico-item">
-        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index)}
+        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index, "historico-capa")}
         <div class="historico-info">
           <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
           <div class="barra"><div class="barra-preenchida ${classeCor(index)}" style="width:${item.pontuacao}%"></div></div>
