@@ -67,7 +67,7 @@ body {
   padding: 16px 38px;
   border: none;
   border-radius: 50px;
-  background: #FF6B6B;
+  background: #20AFC5;
   color: #fff;
   font-weight: 700;
   font-size: 1.05rem;
@@ -96,28 +96,28 @@ body {
 .blob-1 {
   top: -120px; left: -100px;
   width: 320px; height: 280px;
-  background: #FF6B6B;
+  background: #20AFC5;
   border-radius: 50% 50% 60% 40% / 60% 40% 60% 40%;
 }
 
 .blob-2 {
   top: -140px; right: -80px;
   width: 260px; height: 260px;
-  background: #F6C445;
+  background: #8DE3EF;
   border-radius: 40% 60% 50% 50% / 50% 60% 40% 50%;
 }
 
 .blob-3 {
   bottom: -140px; left: -100px;
   width: 280px; height: 280px;
-  background: #33C4C4;
+  background: #8DE3EF;
   border-radius: 50% 50% 40% 60% / 40% 50% 60% 50%;
 }
 
 .blob-4 {
   bottom: -160px; right: -100px;
   width: 340px; height: 340px;
-  background: #B4E066;
+  background: #078BA8;
   border-radius: 60% 40% 50% 50% / 50% 40% 60% 50%;
 }
 
