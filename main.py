@@ -81,39 +81,36 @@ async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
 
 @app.get("/musicas")
 def listar_musicas():
-    # ids a partir dos arquivos de letra e de áudio (cobre música sem letra ainda)
-    ids = set()
-    if os.path.isdir("letras"):
-        ids.update(nome.replace(".txt", "") for nome in os.listdir("letras") if nome.endswith(".txt"))
-    if os.path.isdir("musicas"):
-        ids.update(os.path.splitext(nome)[0] for nome in os.listdir("musicas"))
-
-    # título/artista reais, vindos do banco (casando pelo caminho_audio)
-    mapa_info = {}
+    # Fonte única de verdade: tabela `musicas`, filtrando só as ativas
+    # (a coluna `ativa` é mantida pelo importar_musicas.py — ele desliga
+    # automaticamente qualquer música cujo arquivo de áudio tenha sumido
+    # de musicas/, sem apagar o histórico de performances já registradas).
     conn = sqlite3.connect("singai.db")
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT titulo, artista, caminho_audio FROM musicas")
-        for titulo, artista, caminho_audio in cursor.fetchall():
-            if caminho_audio:
-                slug = os.path.splitext(os.path.basename(caminho_audio))[0]
-                mapa_info[slug] = {"titulo": titulo, "artista": artista}
+        cursor.execute(
+            "SELECT titulo, artista, caminho_audio FROM musicas WHERE ativa = 1 ORDER BY titulo"
+        )
+        linhas = cursor.fetchall()
     finally:
         conn.close()
 
     musicas = []
-    for slug in sorted(ids):
-        info = mapa_info.get(slug, {})
+    for titulo, artista, caminho_audio in linhas:
+        if not caminho_audio:
+            # música sem áudio vinculado ainda não deve aparecer no catálogo
+            continue
+        slug = os.path.splitext(os.path.basename(caminho_audio))[0]
         musicas.append({
             "id": slug,
-            "titulo": info.get("titulo") or slug.replace("_", " ").title(),
-            "artista": info.get("artista"),
+            "titulo": titulo,
+            "artista": artista,
         })
 
     return {"musicas": musicas}
 
 
-# NOVA ROTA: entrega o MP3 original do catálogo (pasta musicas/) pro navegador tocar.
+# Entrega o MP3 original do catálogo (pasta musicas/) pro navegador tocar.
 # Procura pelo musica_id em algumas extensões, já que o formato pode variar.
 @app.get("/musica-audio/{musica_id}")
 def obter_audio_musica(musica_id: str):
