@@ -43,6 +43,10 @@ INFO_MUSICAS = {
     "tempoperdido":       {"titulo": "Tempo Perdido", "artista": "Legião Urbana"},
     "terradegigantes":    {"titulo": "Terra de Gigantes", "artista": "Engenheiros do Hawaii"},
     "vienna":             {"titulo": "Vienna", "artista": "Billy Joel"},
+    "zoiodelula":         {"titulo": "Zóio de Lula", "artista": "Charlie Brown Jr."},
+
+
+
     # adicione aqui as novas músicas que substituíram as antigas
 }
 

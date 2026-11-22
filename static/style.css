@@ -578,3 +578,24 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   object-fit: cover;
   border-radius: inherit;
 }
+
+.letra-sync {
+  max-height: 160px;
+  overflow-y: auto;
+  text-align: left;
+  margin-bottom: 14px;
+  padding: 10px;
+  background: #F4EFE4;
+  border-radius: 12px;
+}
+.linha-letra {
+  opacity: 0.4;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  padding: 2px 0;
+}
+.linha-ativa {
+  opacity: 1;
+  font-weight: 700;
+  color: #FF6B6B;
+  transform: scale(1.03);
+}

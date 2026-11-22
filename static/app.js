@@ -1,6 +1,7 @@
 let mediaRecorder;
 let audioChunks = [];
 let musicaSelecionada = "";
+let linhasSincronia = [];
 
 function classeCor(index) {
   return `c${index % 5}`;
@@ -71,6 +72,41 @@ async function carregarHistorico() {
   });
 }
 
+async function carregarSincronia(musicaId) {
+  const container = document.getElementById("letraSincronizada");
+  try {
+    const resposta = await fetch(`/sincronia/${musicaId}`);
+    const dados = await resposta.json();
+    linhasSincronia = dados.linhas || [];
+  } catch (erro) {
+    linhasSincronia = [];
+  }
+
+  if (linhasSincronia.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = linhasSincronia
+    .map((linha, i) => `<p class="linha-letra" data-index="${i}">${linha.texto}</p>`)
+    .join("");
+}
+
+function destacarLinhaAtual() {
+  const player = document.getElementById("playerMusica");
+  if (!linhasSincronia.length || !player) return;
+
+  const tempoAtual = player.currentTime;
+  let indiceAtivo = 0;
+  for (let i = 0; i < linhasSincronia.length; i++) {
+    if (tempoAtual >= linhasSincronia[i].tempo) indiceAtivo = i;
+  }
+
+  document.querySelectorAll(".linha-letra").forEach((el, i) => {
+    el.classList.toggle("linha-ativa", i === indiceAtivo);
+  });
+}
+
 function abrirModal(musica) {
   document.getElementById("modalFundo").classList.add("aberto");
   if (musica) {
@@ -89,6 +125,10 @@ function abrirModal(musica) {
       // nesse caso os controles do player permitem apertar play manualmente.
       console.warn("Não foi possível iniciar o áudio automaticamente:", erro);
     });
+
+    carregarSincronia(musicaAtual);
+    player.removeEventListener("timeupdate", destacarLinhaAtual);
+    player.addEventListener("timeupdate", destacarLinhaAtual);
   }
 }
 

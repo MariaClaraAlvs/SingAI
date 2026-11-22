@@ -1,6 +1,7 @@
 import re
+import json
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import shutil
 import os
 import sqlite3
@@ -19,7 +20,7 @@ def iniciar_banco():
 
 
 # Carrega o modelo UMA vez, quando o servidor sobe
-modelo_whisper = whisper.load_model("turbo")
+modelo_whisper = whisper.load_model("medium")
 
 
 def normalizar(texto: str) -> str:
@@ -27,6 +28,30 @@ def normalizar(texto: str) -> str:
     texto = re.sub(r'[^\w\sáàâãéèêíïóôõöúçñ]', '', texto)
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
+
+
+def colapsar_repeticoes(texto: str, max_repeticoes: int = 3) -> str:
+    """Rede de segurança contra loops de repetição do Whisper: se a mesma
+    palavra ou sequência curta aparecer mais de `max_repeticoes` vezes
+    seguidas, corta o excesso. Não deveria ser necessário com
+    condition_on_previous_text=False, mas protege o WER de casos extremos."""
+    palavras = texto.split()
+    if not palavras:
+        return texto
+
+    resultado = []
+    atual = palavras[0]
+    contagem = 1
+    for palavra in palavras[1:]:
+        if palavra == atual:
+            contagem += 1
+            if contagem <= max_repeticoes:
+                resultado.append(palavra)
+        else:
+            atual = palavra
+            contagem = 1
+            resultado.append(palavra)
+    return " ".join(resultado)
 
 
 @app.get("/")
@@ -57,13 +82,18 @@ async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
     if not os.path.exists(caminho_letra):
         return {"erro": f"Música '{musica_id}' não encontrada no catálogo"}
 
-    resultado = modelo_whisper.transcribe(caminho_audio)
+    resultado = modelo_whisper.transcribe(
+        caminho_audio,
+        condition_on_previous_text=False,  # evita o loop de repetição entre janelas
+        compression_ratio_threshold=2.2,   # mais sensível a detectar repetição e tentar de novo
+    )
     transcricao = resultado["text"]
 
     with open(caminho_letra, "r", encoding="utf-8") as f:
         letra_referencia = f.read()
 
-    erro = wer(normalizar(letra_referencia), normalizar(transcricao))
+    transcricao_protegida = colapsar_repeticoes(normalizar(transcricao))
+    erro = wer(normalizar(letra_referencia), transcricao_protegida)
     pontuacao = max(0, (1 - erro) * 100)
     pontuacao = round(pontuacao, 2)
 
@@ -120,6 +150,16 @@ def obter_audio_musica(musica_id: str):
         if os.path.exists(caminho):
             return FileResponse(caminho)
     return {"erro": f"Áudio de '{musica_id}' não encontrado em musicas/"}
+
+
+@app.get("/sincronia/{musica_id}")
+def obter_sincronia(musica_id: str):
+    caminho = os.path.join("sincronia", f"{musica_id}.json")
+    if not os.path.exists(caminho):
+        return JSONResponse({"linhas": []}, status_code=200)
+    with open(caminho, "r", encoding="utf-8") as f:
+        linhas = json.load(f)
+    return {"linhas": linhas}
 
 
 @app.get("/historico")
