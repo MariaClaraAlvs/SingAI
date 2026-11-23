@@ -8,7 +8,6 @@ function classeCor(index) {
 }
 
 function handleCapaError(img, letra) {
-  // Se a imagem da capa não existir, volta pro fallback com a letra inicial
   const capa = img.parentElement;
   capa.innerHTML = letra;
 }
@@ -114,15 +113,14 @@ function abrirModal(musica) {
   }
   document.getElementById("resultado").textContent = "Escolha uma música e comece a gravar!";
 
-  // Carrega e toca o áudio original da música selecionada
   const musicaAtual = musica || document.getElementById("listaMusicas").value;
   const player = document.getElementById("playerMusica");
+
   if (musicaAtual && player) {
     player.src = `/musica-audio/${musicaAtual}`;
-    player.load(); // força o navegador a recarregar a nova fonte (necessário ao trocar o src de um <audio> já usado)
+    player.load();
+
     player.play().catch((erro) => {
-      // Alguns navegadores bloqueiam autoplay sem interação prévia do usuário;
-      // nesse caso os controles do player permitem apertar play manualmente.
       console.warn("Não foi possível iniciar o áudio automaticamente:", erro);
     });
 
@@ -135,7 +133,6 @@ function abrirModal(musica) {
 function fecharModal() {
   document.getElementById("modalFundo").classList.remove("aberto");
 
-  // Para a música ao fechar o modal
   const player = document.getElementById("playerMusica");
   if (player) {
     player.pause();
@@ -151,7 +148,9 @@ async function iniciarGravacao() {
   mediaRecorder.ondataavailable = (evento) => {
     audioChunks.push(evento.data);
   };
+
   mediaRecorder.start();
+
   document.getElementById("btnGravar").disabled = true;
   document.getElementById("btnParar").disabled = false;
 }
@@ -174,6 +173,7 @@ function pararGravacao() {
       method: "POST",
       body: formData,
     });
+
     const dadosGravar = await respostaGravar.json();
 
     document.getElementById("resultado").textContent = "Calculando pontuação...";
@@ -182,6 +182,7 @@ function pararGravacao() {
       `/pontuar?nome_arquivo=${dadosGravar.arquivo}&musica_id=${musicaSelecionada}&usuario=${encodeURIComponent(nomeUsuario)}`,
       { method: "POST" }
     );
+
     const resultado = await respostaPontuar.json();
 
     document.getElementById("resultado").innerHTML = `
@@ -215,113 +216,201 @@ function trocarView(nomeView) {
 /* ---------- TELA DE PERFIL ---------- */
 
 async function verPerfil() {
-  const nome = document.getElementById("perfilNome").value.trim();
+  const campoNome = document.getElementById("perfilNome");
   const container = document.getElementById("perfilResultado");
 
+  if (!campoNome || !container) return;
+
+  const nome = campoNome.value.trim();
+
   if (!nome) {
-    container.innerHTML = `<p class="mensagem-vazia">Digite um nome para ver o perfil.</p>`;
+    container.innerHTML = '<p class="mensagem-vazia">Digite um nome para ver o perfil.</p>';
+    campoNome.focus();
     return;
   }
 
-  container.innerHTML = `<p class="mensagem-vazia">Carregando...</p>`;
+  container.innerHTML = '<p class="mensagem-vazia">Carregando...</p>';
 
-  const resposta = await fetch(`/historico?usuario=${encodeURIComponent(nome)}&limite=100`);
-  const dados = await resposta.json();
+  try {
+    const resposta = await fetch("/historico?limite=100");
 
-  if (dados.historico.length === 0) {
-    container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para "${nome}". Confira se o nome foi digitado do mesmo jeito usado ao gravar.</p>`;
-    return;
-  }
+    if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
 
-  const pontuacoes = dados.historico.map((item) => item.pontuacao);
-  const total = pontuacoes.length;
-  const melhor = Math.max(...pontuacoes);
-  const media = (pontuacoes.reduce((soma, p) => soma + p, 0) / total).toFixed(2);
+    const dados = await resposta.json();
 
-  let html = `
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-valor">${total}</div>
-        <div class="stat-label">Performances</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-valor">${melhor}%</div>
-        <div class="stat-label">Melhor pontuação</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-valor">${media}%</div>
-        <div class="stat-label">Média</div>
-      </div>
-    </div>
-    <div class="perfil-lista-titulo">Histórico de ${nome}</div>
-  `;
+    const historico = (Array.isArray(dados.historico) ? dados.historico : [])
+      .filter(item => String(item.usuario || "").toLocaleLowerCase() === nome.toLocaleLowerCase());
 
-  dados.historico.forEach((item, index) => {
-    html += `
-      <div class="historico-item">
-        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index, "historico-capa")}
-        <div class="historico-info">
-          <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
-          <div class="barra"><div class="barra-preenchida ${classeCor(index)}" style="width:${item.pontuacao}%"></div></div>
+    if (!historico.length) {
+      container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para ${nome}.</p>`;
+      return;
+    }
+
+    const media = historico.reduce((total, item) => total + Number(item.pontuacao || 0), 0) / historico.length;
+
+    container.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-valor">${historico.length}</div>
+          <div class="stat-label">Performances</div>
         </div>
-        <div class="score">${item.pontuacao}%</div>
+        <div class="stat-card">
+          <div class="stat-valor">${media.toFixed(2)}%</div>
+          <div class="stat-label">Média de pontuação</div>
+        </div>
       </div>
-    `;
-  });
 
-  container.innerHTML = html;
+      <div class="perfil-lista-titulo">Histórico de ${nome}</div>
+
+      ${historico.map((item, index) => `
+        <div class="historico-item">
+          ${capaHTML(item.musica_id || "", String(item.musica_id || "♪").charAt(0).toUpperCase(), index, "historico-capa")}
+          <div class="historico-info">
+            <div class="historico-nome">${String(item.musica_id || "Música").replace(/_/g, " ")}</div>
+            <div class="barra">
+              <div class="barra-preenchida" style="width:${Math.max(0, Math.min(100, Number(item.pontuacao || 0)))}%"></div>
+            </div>
+          </div>
+          <div class="score">${item.pontuacao}%</div>
+        </div>
+      `).join("")}
+    `;
+  } catch (erro) {
+    console.error("Erro ao carregar perfil:", erro);
+    container.innerHTML = '<p class="mensagem-vazia">Não foi possível carregar o perfil. Verifique se o backend está ativo.</p>';
+  }
 }
 
 /* ---------- TELA DE RANKING ---------- */
 
 async function carregarRanking() {
   const container = document.getElementById("rankingLista");
-  container.innerHTML = `<p class="mensagem-vazia">Carregando...</p>`;
 
-  const resposta = await fetch("/ranking?limite=10");
-  const dados = await resposta.json();
+  if (!container) return;
 
-  if (dados.ranking.length === 0) {
-    container.innerHTML = `<p class="mensagem-vazia">Ainda não há performances registradas.</p>`;
-    return;
+  container.innerHTML = '<p class="mensagem-vazia">Carregando ranking...</p>';
+
+  try {
+    const resposta = await fetch("/ranking");
+
+    if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
+
+    const dados = await resposta.json();
+
+    const ranking = Array.isArray(dados.ranking) ? dados.ranking :
+      Array.isArray(dados.usuarios) ? dados.usuarios :
+      Array.isArray(dados) ? dados : [];
+
+    if (!ranking.length) {
+      container.innerHTML = '<p class="mensagem-vazia">Ainda não há pontuações no ranking.</p>';
+      return;
+    }
+
+    container.innerHTML = "";
+
+    ranking.forEach((item, index) => {
+      const nome = item.usuario || item.nome || "Anônimo";
+      const nota = Number(item.pontuacao ?? item.media ?? item.melhor_pontuacao ?? 0);
+
+      const medalha = index === 0 ? "ouro" :
+        index === 1 ? "prata" :
+        index === 2 ? "bronze" : "";
+
+      const linha = document.createElement("div");
+      linha.className = "ranking-item";
+
+      linha.innerHTML = `
+        <div class="ranking-pos ${medalha}">${index + 1}</div>
+        <div class="ranking-nome">${nome}</div>
+        <div class="ranking-nota">${nota.toFixed(2)}%</div>
+      `;
+
+      container.appendChild(linha);
+    });
+
+  } catch (erro) {
+    console.error("Erro ao carregar ranking:", erro);
+    container.innerHTML = '<p class="mensagem-vazia">Não foi possível carregar o ranking.</p>';
+  }
+}
+
+/* ---------- INICIALIZAÇÃO E EVENTOS ---------- */
+
+function configurarEventos() {
+  const telaAbertura = document.getElementById("telaAbertura");
+  const botaoComecar = document.getElementById("btnComecarCantar");
+
+  // Evento do botão da tela inicial
+  if (botaoComecar && telaAbertura) {
+    botaoComecar.addEventListener("click", () => {
+      telaAbertura.classList.add("saindo");
+    });
   }
 
-  const medalhas = ["ouro", "prata", "bronze"];
+  // Navegação lateral
+  document.querySelectorAll(".nav-item[data-view]").forEach(item => {
+    item.addEventListener("click", () => trocarView(item.dataset.view));
+  });
 
-  container.innerHTML = "";
-  dados.ranking.forEach((item, index) => {
-    const classeMedalha = medalhas[index] || "";
-    const div = document.createElement("div");
-    div.className = "ranking-item";
-    div.innerHTML = `
-      <div class="ranking-pos ${classeMedalha}">${index + 1}</div>
-      <div class="ranking-nome">${item.usuario}</div>
-      <div class="ranking-nota">${item.melhor_pontuacao}%</div>
-    `;
-    container.appendChild(div);
+  // Botões principais
+  document.getElementById("btnFaixaDestaque")?.addEventListener("click", () => abrirModal());
+  document.getElementById("btnAbrirModal")?.addEventListener("click", () => abrirModal());
+  document.getElementById("btnAtalhoPerfil")?.addEventListener("click", () => trocarView("perfil"));
+
+  // Perfil
+  document.getElementById("btnVerPerfil")?.addEventListener("click", verPerfil);
+
+  document.getElementById("perfilNome")?.addEventListener("keydown", evento => {
+    if (evento.key === "Enter") verPerfil();
+  });
+
+  // Gravação
+  document.getElementById("btnGravar")?.addEventListener("click", iniciarGravacao);
+  document.getElementById("btnParar")?.addEventListener("click", pararGravacao);
+
+  // Fechar modal
+  document.getElementById("fecharModal")?.addEventListener("click", fecharModal);
+
+  // Seleção de música
+  document.getElementById("listaMusicas")?.addEventListener("change", evento => {
+    const id = evento.target.value;
+
+    if (!id) return;
+
+    const player = document.getElementById("playerMusica");
+
+    if (player) {
+      player.src = `/musica-audio/${encodeURIComponent(id)}`;
+      player.load();
+
+      player.play().catch(erro => {
+        console.warn("Reprodução automática bloqueada:", erro);
+      });
+    }
+
+    carregarSincronia(id);
+  });
+
+  document.getElementById("playerMusica")?.addEventListener("timeupdate", destacarLinhaAtual);
+
+  // Fechar modal clicando fora
+  document.getElementById("modalFundo")?.addEventListener("click", evento => {
+    if (evento.target.id === "modalFundo") fecharModal();
+  });
+
+  // Busca de músicas
+  document.querySelector(".busca input")?.addEventListener("input", evento => {
+    const termo = evento.target.value.trim().toLocaleLowerCase();
+
+    document.querySelectorAll("#catalogo .musica-card").forEach(card => {
+      card.hidden = !card.textContent.toLocaleLowerCase().includes(termo);
+    });
   });
 }
 
-/* ---------- EVENTOS ---------- */
-
-document.getElementById("btnGravar").addEventListener("click", iniciarGravacao);
-document.getElementById("btnParar").addEventListener("click", pararGravacao);
-document.getElementById("btnAbrirModal").addEventListener("click", () => abrirModal());
-document.getElementById("fecharModal").addEventListener("click", fecharModal);
-
-document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
-  item.addEventListener("click", () => trocarView(item.dataset.view));
+// Inicialização
+document.addEventListener("DOMContentLoaded", () => {
+  configurarEventos();
+  carregarMusicas();
+  carregarHistorico();
 });
-
-document.getElementById("btnAtalhoPerfil").addEventListener("click", () => trocarView("perfil"));
-document.getElementById("btnVerPerfil").addEventListener("click", verPerfil);
-document.getElementById("perfilNome").addEventListener("keydown", (evento) => {
-  if (evento.key === "Enter") verPerfil();
-});
-
-document.getElementById("btnComecarCantar").addEventListener("click", () => {
-  document.getElementById("telaAbertura").classList.add("saindo");
-});
-
-carregarMusicas();
-carregarHistorico();
