@@ -103,18 +103,60 @@
 
   <!-- MODAL DE GRAVAÇÃO -->
   <div class="modal-fundo" id="modalFundo">
-    <div class="modal">
-      <h2>Cantar</h2>
-      <div id="letraSincronizada" class="letra-sync"></div>
-      <audio id="playerMusica" controls style="width:100%; margin-bottom:14px;"></audio>
-      <input type="text" id="nomeUsuario" placeholder="Seu nome" style="width:100%; padding:12px; border-radius:12px; border:1px solid #eee; background:#F4EFE4; margin-bottom:14px; font-size:1rem;">
-      <select id="listaMusicas"></select>
-      <div class="botoes">
-        <button id="btnGravar">Gravar</button>
-        <button id="btnParar" disabled>Parar</button>
+    <div class="modal modal-palco">
+      <button id="fecharModal" class="fechar-palco" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+
+      <div class="palco-cabecalho">
+        <div class="capa palco-capa" id="musicaCapaContainer">
+          <img id="musicaCapa" src="" alt="" onerror="this.parentElement.innerHTML = (this.parentElement.dataset.letraFallback || '♪')">
+        </div>
+        <div class="palco-info">
+          <div class="palco-titulo" id="musicaTitulo">Escolha uma música</div>
+          <div class="palco-artista" id="musicaArtista"></div>
+        </div>
       </div>
+
+      <div class="palco-corpo">
+        <div id="letraSincronizada" class="letra-sync letra-sync-grande"></div>
+
+        <div class="disco-vinil-wrap">
+          <div class="disco-vinil" id="discoVinil">
+            <div class="disco-vinil-furo"></div>
+          </div>
+        </div>
+      </div>
+
+      <audio id="playerMusica" style="display:none;"></audio>
+
+      <div class="palco-player">
+        <button id="btnPlayPause" class="botao-play-pause" aria-label="Tocar/Pausar instrumental">
+          <svg id="iconePlay" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="iconePause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        </button>
+        <span class="palco-tempo" id="palcoTempo">0:00 / 0:00</span>
+      </div>
+
+      <div class="palco-controles">
+        <select id="listaMusicas"></select>
+        <input type="text" id="nomeUsuario" placeholder="Seu nome">
+        <div class="botoes">
+          <button id="btnGravar">● Gravar</button>
+          <button id="btnParar" disabled>Parar</button>
+        </div>
+      </div>
+
+      <div id="confirmacaoGravacao" class="confirmacao-gravacao" style="display:none;">
+        <p class="confirmacao-titulo">Ouça sua gravação antes de enviar</p>
+        <audio id="previewGravacao" controls></audio>
+        <div class="botoes">
+          <button id="btnUsarGravacao">Usar essa gravação</button>
+          <button id="btnDescartarGravacao">Gravar de novo</button>
+        </div>
+      </div>
+
       <div id="resultado">Escolha uma música e comece a gravar!</div>
-      <button id="fecharModal">Fechar</button>
     </div>
   </div>
 

@@ -2,6 +2,9 @@ let mediaRecorder;
 let audioChunks = [];
 let musicaSelecionada = "";
 let linhasSincronia = [];
+let musicasInfo = {}; // slug -> { titulo, artista }
+let blobPendente = null;
+let nomeArquivoPendente = "";
 
 function classeCor(index) {
   return `c${index % 5}`;
@@ -28,6 +31,8 @@ async function carregarMusicas() {
   const select = document.getElementById("listaMusicas");
 
   dados.musicas.forEach((musica, index) => {
+    musicasInfo[musica.id] = { titulo: musica.titulo, artista: musica.artista };
+
     const card = document.createElement("div");
     card.className = "musica-card";
     card.innerHTML = `
@@ -82,7 +87,7 @@ async function carregarSincronia(musicaId) {
   }
 
   if (linhasSincronia.length === 0) {
-    container.innerHTML = "";
+    container.innerHTML = `<p class="mensagem-vazia" style="color:#9FB4E0;">Letra sincronizada ainda não disponível pra essa música.</p>`;
     return;
   }
 
@@ -102,8 +107,63 @@ function destacarLinhaAtual() {
   }
 
   document.querySelectorAll(".linha-letra").forEach((el, i) => {
-    el.classList.toggle("linha-ativa", i === indiceAtivo);
+    const ativa = i === indiceAtivo;
+    el.classList.toggle("linha-ativa", ativa);
+    if (ativa) {
+      // Rolagem automática: mantém a linha atual sempre visível, sem precisar arrastar
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   });
+}
+
+function formatarTempo(segundos) {
+  if (!isFinite(segundos)) return "0:00";
+  const min = Math.floor(segundos / 60);
+  const seg = Math.floor(segundos % 60).toString().padStart(2, "0");
+  return `${min}:${seg}`;
+}
+
+function atualizarTempoExibido() {
+  const player = document.getElementById("playerMusica");
+  document.getElementById("palcoTempo").textContent =
+    `${formatarTempo(player.currentTime)} / ${formatarTempo(player.duration)}`;
+}
+
+function alternarPlayPause() {
+  const player = document.getElementById("playerMusica");
+  if (player.paused) {
+    player.play().catch(() => {});
+  } else {
+    player.pause();
+  }
+}
+
+function sincronizarIconesEDisco() {
+  const player = document.getElementById("playerMusica");
+  const disco = document.getElementById("discoVinil");
+  const tocando = !player.paused && !player.ended;
+  document.getElementById("iconePlay").style.display = tocando ? "none" : "block";
+  document.getElementById("iconePause").style.display = tocando ? "block" : "none";
+  disco.classList.toggle("tocando", tocando);
+}
+
+function carregarMusicaNoModal(musicaId) {
+  const info = musicasInfo[musicaId] || {};
+  const letraInicial = (info.titulo || musicaId).charAt(0).toUpperCase();
+
+  document.getElementById("musicaTitulo").textContent = info.titulo || musicaId;
+  document.getElementById("musicaArtista").textContent = info.artista || "";
+
+  const capaImg = document.getElementById("musicaCapa");
+  const capaContainer = document.getElementById("musicaCapaContainer");
+  capaContainer.dataset.letraFallback = letraInicial;
+  capaContainer.innerHTML = `<img id="musicaCapa" src="/static/capas/${musicaId}.jpg" alt="${letraInicial}" onerror="handleCapaError(this, '${letraInicial}')">`;
+
+  const player = document.getElementById("playerMusica");
+  player.src = `/musica-audio/${musicaId}`;
+  player.load();
+
+  carregarSincronia(musicaId);
 }
 
 function abrirModal(musica) {
@@ -115,18 +175,23 @@ function abrirModal(musica) {
 
   const musicaAtual = musica || document.getElementById("listaMusicas").value;
   const player = document.getElementById("playerMusica");
-
   if (musicaAtual && player) {
-    player.src = `/musica-audio/${musicaAtual}`;
-    player.load();
+    carregarMusicaNoModal(musicaAtual);
 
     player.play().catch((erro) => {
       console.warn("Não foi possível iniciar o áudio automaticamente:", erro);
     });
 
-    carregarSincronia(musicaAtual);
     player.removeEventListener("timeupdate", destacarLinhaAtual);
     player.addEventListener("timeupdate", destacarLinhaAtual);
+    player.removeEventListener("timeupdate", atualizarTempoExibido);
+    player.addEventListener("timeupdate", atualizarTempoExibido);
+    player.removeEventListener("play", sincronizarIconesEDisco);
+    player.addEventListener("play", sincronizarIconesEDisco);
+    player.removeEventListener("pause", sincronizarIconesEDisco);
+    player.addEventListener("pause", sincronizarIconesEDisco);
+    player.removeEventListener("ended", sincronizarIconesEDisco);
+    player.addEventListener("ended", sincronizarIconesEDisco);
   }
 }
 
@@ -148,9 +213,7 @@ async function iniciarGravacao() {
   mediaRecorder.ondataavailable = (evento) => {
     audioChunks.push(evento.data);
   };
-
   mediaRecorder.start();
-
   document.getElementById("btnGravar").disabled = true;
   document.getElementById("btnParar").disabled = false;
 }
@@ -158,43 +221,60 @@ async function iniciarGravacao() {
 function pararGravacao() {
   mediaRecorder.stop();
 
-  mediaRecorder.onstop = async () => {
-    const nomeUsuario = document.getElementById("nomeUsuario").value.trim() || "Anônimo";
-    const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+  mediaRecorder.onstop = () => {
+    blobPendente = new Blob(audioChunks, { type: "audio/wav" });
     musicaSelecionada = document.getElementById("listaMusicas").value;
-    const nomeArquivo = `${musicaSelecionada}_${Date.now()}.wav`;
+    nomeArquivoPendente = `${musicaSelecionada}_${Date.now()}.wav`;
 
-    const formData = new FormData();
-    formData.append("audio", audioBlob, nomeArquivo);
+    const preview = document.getElementById("previewGravacao");
+    preview.src = URL.createObjectURL(blobPendente);
 
-    document.getElementById("resultado").textContent = "Enviando áudio...";
+    document.getElementById("confirmacaoGravacao").style.display = "block";
+    document.getElementById("resultado").textContent = "Ouça a prévia acima antes de enviar.";
 
-    const respostaGravar = await fetch("/gravar", {
-      method: "POST",
-      body: formData,
-    });
-
-    const dadosGravar = await respostaGravar.json();
-
-    document.getElementById("resultado").textContent = "Calculando pontuação...";
-
-    const respostaPontuar = await fetch(
-      `/pontuar?nome_arquivo=${dadosGravar.arquivo}&musica_id=${musicaSelecionada}&usuario=${encodeURIComponent(nomeUsuario)}`,
-      { method: "POST" }
-    );
-
-    const resultado = await respostaPontuar.json();
-
-    document.getElementById("resultado").innerHTML = `
-      <p><b>Pontuação:</b> ${resultado.pontuacao}</p>
-      <p><b>Transcrição:</b> ${resultado.transcricao}</p>
-    `;
-
-    carregarHistorico();
+    document.getElementById("btnGravar").disabled = false;
+    document.getElementById("btnParar").disabled = true;
   };
+}
 
-  document.getElementById("btnGravar").disabled = false;
-  document.getElementById("btnParar").disabled = true;
+async function confirmarEnvio() {
+  if (!blobPendente) return;
+
+  document.getElementById("confirmacaoGravacao").style.display = "none";
+
+  const nomeUsuario = document.getElementById("nomeUsuario").value.trim() || "Anônimo";
+  const formData = new FormData();
+  formData.append("audio", blobPendente, nomeArquivoPendente);
+
+  document.getElementById("resultado").textContent = "Enviando áudio...";
+
+  const respostaGravar = await fetch("/gravar", {
+    method: "POST",
+    body: formData,
+  });
+  const dadosGravar = await respostaGravar.json();
+
+  document.getElementById("resultado").textContent = "Calculando pontuação...";
+
+  const respostaPontuar = await fetch(
+    `/pontuar?nome_arquivo=${dadosGravar.arquivo}&musica_id=${musicaSelecionada}&usuario=${encodeURIComponent(nomeUsuario)}`,
+    { method: "POST" }
+  );
+  const resultado = await respostaPontuar.json();
+
+  document.getElementById("resultado").innerHTML = `
+    <p><b>Pontuação:</b> ${resultado.pontuacao}</p>
+    <p><b>Transcrição:</b> ${resultado.transcricao}</p>
+  `;
+
+  blobPendente = null;
+  carregarHistorico();
+}
+
+function descartarGravacao() {
+  blobPendente = null;
+  document.getElementById("confirmacaoGravacao").style.display = "none";
+  document.getElementById("resultado").textContent = "Escolha uma música e comece a gravar!";
 }
 
 /* ---------- NAVEGAÇÃO ENTRE TELAS ---------- */
@@ -216,201 +296,121 @@ function trocarView(nomeView) {
 /* ---------- TELA DE PERFIL ---------- */
 
 async function verPerfil() {
-  const campoNome = document.getElementById("perfilNome");
+  const nome = document.getElementById("perfilNome").value.trim();
   const container = document.getElementById("perfilResultado");
 
-  if (!campoNome || !container) return;
-
-  const nome = campoNome.value.trim();
-
   if (!nome) {
-    container.innerHTML = '<p class="mensagem-vazia">Digite um nome para ver o perfil.</p>';
-    campoNome.focus();
+    container.innerHTML = `<p class="mensagem-vazia">Digite um nome para ver o perfil.</p>`;
     return;
   }
 
-  container.innerHTML = '<p class="mensagem-vazia">Carregando...</p>';
+  container.innerHTML = `<p class="mensagem-vazia">Carregando...</p>`;
 
-  try {
-    const resposta = await fetch("/historico?limite=100");
+  const resposta = await fetch(`/historico?usuario=${encodeURIComponent(nome)}&limite=100`);
+  const dados = await resposta.json();
 
-    if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
-
-    const dados = await resposta.json();
-
-    const historico = (Array.isArray(dados.historico) ? dados.historico : [])
-      .filter(item => String(item.usuario || "").toLocaleLowerCase() === nome.toLocaleLowerCase());
-
-    if (!historico.length) {
-      container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para ${nome}.</p>`;
-      return;
-    }
-
-    const media = historico.reduce((total, item) => total + Number(item.pontuacao || 0), 0) / historico.length;
-
-    container.innerHTML = `
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-valor">${historico.length}</div>
-          <div class="stat-label">Performances</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-valor">${media.toFixed(2)}%</div>
-          <div class="stat-label">Média de pontuação</div>
-        </div>
-      </div>
-
-      <div class="perfil-lista-titulo">Histórico de ${nome}</div>
-
-      ${historico.map((item, index) => `
-        <div class="historico-item">
-          ${capaHTML(item.musica_id || "", String(item.musica_id || "♪").charAt(0).toUpperCase(), index, "historico-capa")}
-          <div class="historico-info">
-            <div class="historico-nome">${String(item.musica_id || "Música").replace(/_/g, " ")}</div>
-            <div class="barra">
-              <div class="barra-preenchida" style="width:${Math.max(0, Math.min(100, Number(item.pontuacao || 0)))}%"></div>
-            </div>
-          </div>
-          <div class="score">${item.pontuacao}%</div>
-        </div>
-      `).join("")}
-    `;
-  } catch (erro) {
-    console.error("Erro ao carregar perfil:", erro);
-    container.innerHTML = '<p class="mensagem-vazia">Não foi possível carregar o perfil. Verifique se o backend está ativo.</p>';
+  if (dados.historico.length === 0) {
+    container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para "${nome}". Confira se o nome foi digitado do mesmo jeito usado ao gravar.</p>`;
+    return;
   }
+
+  const pontuacoes = dados.historico.map((item) => item.pontuacao);
+  const total = pontuacoes.length;
+  const melhor = Math.max(...pontuacoes);
+  const media = (pontuacoes.reduce((soma, p) => soma + p, 0) / total).toFixed(2);
+
+  let html = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-valor">${total}</div>
+        <div class="stat-label">Performances</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-valor">${melhor}%</div>
+        <div class="stat-label">Melhor pontuação</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-valor">${media}%</div>
+        <div class="stat-label">Média</div>
+      </div>
+    </div>
+    <div class="perfil-lista-titulo">Histórico de ${nome}</div>
+  `;
+
+  dados.historico.forEach((item, index) => {
+    html += `
+      <div class="historico-item">
+        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index, "historico-capa")}
+        <div class="historico-info">
+          <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
+          <div class="barra"><div class="barra-preenchida ${classeCor(index)}" style="width:${item.pontuacao}%"></div></div>
+        </div>
+        <div class="score">${item.pontuacao}%</div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
 }
 
 /* ---------- TELA DE RANKING ---------- */
 
 async function carregarRanking() {
   const container = document.getElementById("rankingLista");
+  container.innerHTML = `<p class="mensagem-vazia">Carregando...</p>`;
 
-  if (!container) return;
+  const resposta = await fetch("/ranking?limite=10");
+  const dados = await resposta.json();
 
-  container.innerHTML = '<p class="mensagem-vazia">Carregando ranking...</p>';
-
-  try {
-    const resposta = await fetch("/ranking");
-
-    if (!resposta.ok) throw new Error(`Erro HTTP ${resposta.status}`);
-
-    const dados = await resposta.json();
-
-    const ranking = Array.isArray(dados.ranking) ? dados.ranking :
-      Array.isArray(dados.usuarios) ? dados.usuarios :
-      Array.isArray(dados) ? dados : [];
-
-    if (!ranking.length) {
-      container.innerHTML = '<p class="mensagem-vazia">Ainda não há pontuações no ranking.</p>';
-      return;
-    }
-
-    container.innerHTML = "";
-
-    ranking.forEach((item, index) => {
-      const nome = item.usuario || item.nome || "Anônimo";
-      const nota = Number(item.pontuacao ?? item.media ?? item.melhor_pontuacao ?? 0);
-
-      const medalha = index === 0 ? "ouro" :
-        index === 1 ? "prata" :
-        index === 2 ? "bronze" : "";
-
-      const linha = document.createElement("div");
-      linha.className = "ranking-item";
-
-      linha.innerHTML = `
-        <div class="ranking-pos ${medalha}">${index + 1}</div>
-        <div class="ranking-nome">${nome}</div>
-        <div class="ranking-nota">${nota.toFixed(2)}%</div>
-      `;
-
-      container.appendChild(linha);
-    });
-
-  } catch (erro) {
-    console.error("Erro ao carregar ranking:", erro);
-    container.innerHTML = '<p class="mensagem-vazia">Não foi possível carregar o ranking.</p>';
-  }
-}
-
-/* ---------- INICIALIZAÇÃO E EVENTOS ---------- */
-
-function configurarEventos() {
-  const telaAbertura = document.getElementById("telaAbertura");
-  const botaoComecar = document.getElementById("btnComecarCantar");
-
-  // Evento do botão da tela inicial
-  if (botaoComecar && telaAbertura) {
-    botaoComecar.addEventListener("click", () => {
-      telaAbertura.classList.add("saindo");
-    });
+  if (dados.ranking.length === 0) {
+    container.innerHTML = `<p class="mensagem-vazia">Ainda não há performances registradas.</p>`;
+    return;
   }
 
-  // Navegação lateral
-  document.querySelectorAll(".nav-item[data-view]").forEach(item => {
-    item.addEventListener("click", () => trocarView(item.dataset.view));
-  });
+  const medalhas = ["ouro", "prata", "bronze"];
 
-  // Botões principais
-  document.getElementById("btnFaixaDestaque")?.addEventListener("click", () => abrirModal());
-  document.getElementById("btnAbrirModal")?.addEventListener("click", () => abrirModal());
-  document.getElementById("btnAtalhoPerfil")?.addEventListener("click", () => trocarView("perfil"));
-
-  // Perfil
-  document.getElementById("btnVerPerfil")?.addEventListener("click", verPerfil);
-
-  document.getElementById("perfilNome")?.addEventListener("keydown", evento => {
-    if (evento.key === "Enter") verPerfil();
-  });
-
-  // Gravação
-  document.getElementById("btnGravar")?.addEventListener("click", iniciarGravacao);
-  document.getElementById("btnParar")?.addEventListener("click", pararGravacao);
-
-  // Fechar modal
-  document.getElementById("fecharModal")?.addEventListener("click", fecharModal);
-
-  // Seleção de música
-  document.getElementById("listaMusicas")?.addEventListener("change", evento => {
-    const id = evento.target.value;
-
-    if (!id) return;
-
-    const player = document.getElementById("playerMusica");
-
-    if (player) {
-      player.src = `/musica-audio/${encodeURIComponent(id)}`;
-      player.load();
-
-      player.play().catch(erro => {
-        console.warn("Reprodução automática bloqueada:", erro);
-      });
-    }
-
-    carregarSincronia(id);
-  });
-
-  document.getElementById("playerMusica")?.addEventListener("timeupdate", destacarLinhaAtual);
-
-  // Fechar modal clicando fora
-  document.getElementById("modalFundo")?.addEventListener("click", evento => {
-    if (evento.target.id === "modalFundo") fecharModal();
-  });
-
-  // Busca de músicas
-  document.querySelector(".busca input")?.addEventListener("input", evento => {
-    const termo = evento.target.value.trim().toLocaleLowerCase();
-
-    document.querySelectorAll("#catalogo .musica-card").forEach(card => {
-      card.hidden = !card.textContent.toLocaleLowerCase().includes(termo);
-    });
+  container.innerHTML = "";
+  dados.ranking.forEach((item, index) => {
+    const classeMedalha = medalhas[index] || "";
+    const div = document.createElement("div");
+    div.className = "ranking-item";
+    div.innerHTML = `
+      <div class="ranking-pos ${classeMedalha}">${index + 1}</div>
+      <div class="ranking-nome">${item.usuario}</div>
+      <div class="ranking-nota">${item.melhor_pontuacao}%</div>
+    `;
+    container.appendChild(div);
   });
 }
 
-// Inicialização
-document.addEventListener("DOMContentLoaded", () => {
-  configurarEventos();
-  carregarMusicas();
-  carregarHistorico();
+/* ---------- EVENTOS ---------- */
+
+document.getElementById("btnGravar").addEventListener("click", iniciarGravacao);
+document.getElementById("btnParar").addEventListener("click", pararGravacao);
+document.getElementById("btnAbrirModal").addEventListener("click", () => abrirModal());
+document.getElementById("btnFaixaDestaque").addEventListener("click", () => abrirModal());
+document.getElementById("fecharModal").addEventListener("click", fecharModal);
+document.getElementById("btnPlayPause").addEventListener("click", alternarPlayPause);
+document.getElementById("btnUsarGravacao").addEventListener("click", confirmarEnvio);
+document.getElementById("btnDescartarGravacao").addEventListener("click", descartarGravacao);
+
+document.getElementById("listaMusicas").addEventListener("change", (evento) => {
+  if (evento.target.value) carregarMusicaNoModal(evento.target.value);
 });
+
+document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
+  item.addEventListener("click", () => trocarView(item.dataset.view));
+});
+
+document.getElementById("btnAtalhoPerfil").addEventListener("click", () => trocarView("perfil"));
+document.getElementById("btnVerPerfil").addEventListener("click", verPerfil);
+document.getElementById("perfilNome").addEventListener("keydown", (evento) => {
+  if (evento.key === "Enter") verPerfil();
+});
+
+document.getElementById("btnComecarCantar").addEventListener("click", () => {
+  document.getElementById("telaAbertura").classList.add("saindo");
+});
+
+carregarMusicas();
+carregarHistorico();

@@ -657,7 +657,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 #btnGravar { background: linear-gradient(135deg, var(--azul-600), var(--azul-700)); color: white; }
 #btnParar { background: var(--azul-900); color: white; }
-#fecharModal { background: transparent; color: var(--texto-dim); margin-top: 10px; }
+
 
 #resultado {
   background: var(--azul-50);
@@ -695,4 +695,259 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-weight: 700;
   color: var(--azul-700);
   transform: scale(1.03);
+}
+
+/* ---------- MODAL "PALCO" (tela de cantar reformulada) ---------- */
+
+.modal-palco {
+  max-width: 680px;
+  width: 94%;
+  background: linear-gradient(160deg, var(--azul-900), #0A1530 70%);
+  color: var(--branco);
+  text-align: left;
+  position: relative;
+  padding: 28px 30px 30px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.modal-palco .fechar-palco {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  color: var(--branco);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+}
+
+.modal-palco .fechar-palco:hover { background: rgba(255,255,255,0.18); }
+
+.palco-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-right: 40px;
+}
+
+.palco-capa {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  font-size: 1.4rem;
+}
+
+.palco-info { min-width: 0; }
+
+.palco-titulo {
+  font-weight: 800;
+  font-size: 1.15rem;
+  color: var(--branco);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palco-artista {
+  font-size: 0.85rem;
+  color: #9FB4E0;
+}
+
+.palco-corpo {
+  display: flex;
+  gap: 22px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+.letra-sync-grande {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  height: 230px;
+  max-height: 230px;
+  padding: 18px;
+  font-size: 1.1rem;
+  line-height: 1.7;
+  scroll-behavior: smooth;
+}
+
+.letra-sync-grande .linha-letra {
+  opacity: 0.35;
+  color: #C7D6F7;
+  font-weight: 600;
+}
+
+.letra-sync-grande .linha-ativa {
+  opacity: 1;
+  color: var(--branco);
+  font-size: 1.3rem;
+  font-weight: 800;
+  transform: none;
+  border-left: 3px solid var(--azul-500);
+  padding-left: 10px;
+  margin-left: -13px;
+}
+
+.disco-vinil-wrap {
+  width: 140px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disco-vinil {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle, #1a1f33 0px, #1a1f33 2px, #11152a 3px, #11152a 6px),
+    radial-gradient(circle at 35% 35%, var(--azul-600), var(--azul-900) 70%);
+  box-shadow: 0 0 40px rgba(77, 124, 240, 0.35), inset 0 0 20px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: girar-disco 4s linear infinite;
+  animation-play-state: paused;
+}
+
+.disco-vinil.tocando { animation-play-state: running; }
+
+.disco-vinil-furo {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--branco);
+  box-shadow: 0 0 0 4px var(--azul-900);
+}
+
+@keyframes girar-disco {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disco-vinil { animation: none; }
+}
+
+.palco-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.botao-play-pause {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--azul-500), var(--azul-600));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.palco-tempo {
+  font-size: 0.82rem;
+  color: #9FB4E0;
+  font-variant-numeric: tabular-nums;
+}
+
+.palco-controles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.palco-controles select,
+.palco-controles input {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: var(--branco);
+  font-size: 0.92rem;
+}
+
+.palco-controles select option { color: #111; }
+
+.palco-controles .botoes {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.modal-palco #btnGravar {
+  background: linear-gradient(135deg, var(--azul-500), var(--azul-600));
+  color: #fff;
+}
+
+.modal-palco #btnParar {
+  background: transparent;
+  border: 1px solid #FF6B6B;
+  color: #FF6B6B;
+}
+
+.modal-palco #btnParar:not(:disabled) {
+  background: #FF6B6B;
+  color: #fff;
+  border-color: #FF6B6B;
+}
+
+.modal-palco #resultado {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--branco);
+}
+
+.modal-palco #resultado b { color: #8FB4FF; }
+
+.confirmacao-gravacao {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.confirmacao-titulo {
+  color: var(--branco);
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 10px;
+}
+
+.confirmacao-gravacao audio {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.confirmacao-gravacao .botoes {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+#btnUsarGravacao {
+  background: linear-gradient(135deg, var(--azul-500), var(--azul-600));
+  color: #fff;
+}
+
+#btnDescartarGravacao {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  color: var(--branco);
 }
