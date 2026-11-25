@@ -40,11 +40,6 @@
       <div class="hero-label">SingAI</div>
       <h1>Cante, avalie<br>e evolua com sua voz.</h1>
 
-      <div class="busca">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" placeholder="Buscar música...">
-      </div>
-
       <div class="faixa-destaque">
         <div>
           <span class="eyebrow">
@@ -73,6 +68,47 @@
     <section class="view" id="view-ranking">
       <div class="secao-titulo">Ranking de usuários</div>
       <div id="rankingLista"></div>
+    </section>
+
+    <section class="view view-resultado-tela" id="view-resultado">
+      <div class="resultado-topo">
+        <div class="capa resultado-capa-musica" id="resultadoCapaContainer"></div>
+        <div class="resultado-info-musica">
+          <div class="resultado-musica-titulo" id="resultadoMusicaTitulo"></div>
+          <div class="resultado-musica-artista" id="resultadoMusicaArtista"></div>
+        </div>
+        <button id="btnVoltarInicio" class="resultado-voltar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          Voltar para o início
+        </button>
+      </div>
+
+      <div class="resultado-grid">
+        <div class="resultado-card-score">
+          <h2 id="resultadoTitulo">Parabéns!</h2>
+          <p id="resultadoMensagem">Você mandou muito bem!</p>
+          <div class="resultado-porcentagem" id="resultadoPorcentagem">0%</div>
+          <div class="resultado-estrelas" id="resultadoEstrelas"></div>
+          <div class="resultado-rodape">
+            <div class="resultado-rodape-titulo"></div>
+            <div class="resultado-rodape-texto" id="resultadoRodapeTexto"></div>
+          </div>
+        </div>
+
+        <div class="resultado-card-transcricao">
+          <div class="resultado-transcricao-titulo">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Sua transcrição
+          </div>
+          <div id="resultadoTranscricao" class="resultado-transcricao-corpo"></div>
+        </div>
+      </div>
+
+      <div class="resultado-botoes">
+        <button id="btnResultadoTentarNovamente">↻ Tentar novamente</button>
+        <button id="btnResultadoVerHistorico" class="principal">Ver histórico</button>
+        <button id="btnResultadoCompartilhar">Compartilhar resultado</button>
+      </div>
     </section>
   </div>
 

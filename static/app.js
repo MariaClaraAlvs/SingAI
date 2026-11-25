@@ -38,6 +38,7 @@ async function carregarMusicas() {
     card.innerHTML = `
       ${capaHTML(musica.id, musica.titulo.charAt(0).toUpperCase(), index)}
       <div class="nome">${musica.titulo}</div>
+      ${musica.artista ? `<div class="artista">${musica.artista}</div>` : ""}
     `;
     card.addEventListener("click", () => abrirModal(musica.id));
     catalogo.appendChild(card);
@@ -237,6 +238,91 @@ function pararGravacao() {
   };
 }
 
+function definirFeedback(pontuacao) {
+  if (pontuacao >= 90) {
+    return { titulo: "Mandou bem", mensagem: "Essa veio redondinha.", rodapeTitulo: "Modo karaokê desbloqueado", rodapeTexto: "Bora ver se repete essa façanha?" };
+  }
+  if (pontuacao >= 70) {
+    return { titulo: "Boa!", mensagem: "Deu pra sentir o embalo.", rodapeTitulo: "Quase no talo", rodapeTexto: "Mais uma tentativa e isso estoura 90%." };
+  }
+  if (pontuacao >= 50) {
+    return { titulo: "Deu pra ouvir", mensagem: "Teve uns tropeços no meio do caminho.", rodapeTitulo: "Treino em andamento", rodapeTexto: "Tenta de novo acompanhando a letra na tela." };
+  }
+  return { titulo: "Começou", mensagem: "O Whisper se perdeu em alguns trechos aqui.", rodapeTitulo: "Bola pra frente", rodapeTexto: "Grava de novo quando quiser, sem pressa." };
+}
+
+function estrelasHTML(pontuacao) {
+  const notaEm5 = Math.max(0, Math.min(5, pontuacao / 20));
+  let html = "";
+  for (let i = 0; i < 5; i++) {
+    const fracao = Math.max(0, Math.min(1, notaEm5 - i));
+    const percentual = Math.round(fracao * 100);
+    html += `
+      <span class="estrela">
+        <span class="estrela-base">★</span>
+        <span class="estrela-preenchida" style="width:${percentual}%">★</span>
+      </span>
+    `;
+  }
+  return html;
+}
+
+function quebrarEmLinhas(texto) {
+  // o Whisper devolve texto corrido; separamos em frases curtas só pra exibição
+  const partes = texto.split(/(?<=[.,!?])\s+/).map((p) => p.trim()).filter((p) => p.length > 0);
+  return partes.length > 0 ? partes : [texto];
+}
+
+function exibirTelaResultado(resultado) {
+  const info = musicasInfo[musicaSelecionada] || {};
+  const letraInicial = (info.titulo || musicaSelecionada).charAt(0).toUpperCase();
+
+  const capaContainer = document.getElementById("resultadoCapaContainer");
+  capaContainer.innerHTML = `<img src="/static/capas/${musicaSelecionada}.jpg" alt="${letraInicial}" onerror="handleCapaError(this, '${letraInicial}')">`;
+  document.getElementById("resultadoMusicaTitulo").textContent = info.titulo || musicaSelecionada;
+  document.getElementById("resultadoMusicaArtista").textContent = info.artista || "";
+
+  const feedback = definirFeedback(resultado.pontuacao);
+  document.getElementById("resultadoTitulo").textContent = feedback.titulo;
+  document.getElementById("resultadoMensagem").textContent = feedback.mensagem;
+  document.getElementById("resultadoRodapeTexto").textContent = feedback.rodapeTexto;
+  document.querySelector(".resultado-rodape-titulo").textContent = feedback.rodapeTitulo;
+
+  document.getElementById("resultadoPorcentagem").textContent = `${resultado.pontuacao}%`;
+  document.getElementById("resultadoEstrelas").innerHTML = estrelasHTML(resultado.pontuacao);
+
+  const linhas = quebrarEmLinhas(resultado.transcricao);
+  document.getElementById("resultadoTranscricao").innerHTML = linhas
+    .map((linha, i) => `<p class="linha-transcricao ${i === 0 ? "linha-transcricao-ativa" : ""}">${linha}</p>`)
+    .join("");
+
+  fecharModal();
+  trocarView("resultado");
+}
+
+async function compartilharResultado() {
+  const titulo = document.getElementById("resultadoMusicaTitulo").textContent;
+  const porcentagem = document.getElementById("resultadoPorcentagem").textContent;
+  const texto = `Cantei "${titulo}" e tirei ${porcentagem} no SingAI!`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ text: texto });
+      return;
+    } catch (erro) {
+      // usuário cancelou o compartilhamento, sem problema
+      return;
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(texto);
+    alert("Resultado copiado! Cole onde quiser compartilhar.");
+  } catch (erro) {
+    alert(texto);
+  }
+}
+
 async function confirmarEnvio() {
   if (!blobPendente) return;
 
@@ -262,13 +348,9 @@ async function confirmarEnvio() {
   );
   const resultado = await respostaPontuar.json();
 
-  document.getElementById("resultado").innerHTML = `
-    <p><b>Pontuação:</b> ${resultado.pontuacao}</p>
-    <p><b>Transcrição:</b> ${resultado.transcricao}</p>
-  `;
-
   blobPendente = null;
   carregarHistorico();
+  exibirTelaResultado(resultado);
 }
 
 function descartarGravacao() {
@@ -393,6 +475,14 @@ document.getElementById("fecharModal").addEventListener("click", fecharModal);
 document.getElementById("btnPlayPause").addEventListener("click", alternarPlayPause);
 document.getElementById("btnUsarGravacao").addEventListener("click", confirmarEnvio);
 document.getElementById("btnDescartarGravacao").addEventListener("click", descartarGravacao);
+
+document.getElementById("btnVoltarInicio").addEventListener("click", () => trocarView("home"));
+document.getElementById("btnResultadoTentarNovamente").addEventListener("click", () => {
+  trocarView("home");
+  abrirModal(musicaSelecionada);
+});
+document.getElementById("btnResultadoVerHistorico").addEventListener("click", () => trocarView("perfil"));
+document.getElementById("btnResultadoCompartilhar").addEventListener("click", compartilharResultado);
 
 document.getElementById("listaMusicas").addEventListener("change", (evento) => {
   if (evento.target.value) carregarMusicaNoModal(evento.target.value);
