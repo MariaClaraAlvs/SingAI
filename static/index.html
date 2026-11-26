@@ -137,6 +137,16 @@
     </div>
   </div>
 
+  <!-- MODAL: QUEM VAI CANTAR -->
+  <div class="modal-fundo" id="modalNomeFundo">
+    <div class="modal modal-nome">
+      <h2>Quem vai cantar?</h2>
+      <p class="modal-nome-sub">Seu nome aparece no histórico e no ranking.</p>
+      <input type="text" id="campoNomeEntrada" placeholder="Digite seu nome">
+      <button id="btnConfirmarNome">Continuar</button>
+    </div>
+  </div>
+
   <!-- MODAL DE GRAVAÇÃO -->
   <div class="modal-fundo" id="modalFundo">
     <div class="modal modal-palco">
@@ -151,6 +161,10 @@
         <div class="palco-info">
           <div class="palco-titulo" id="musicaTitulo">Escolha uma música</div>
           <div class="palco-artista" id="musicaArtista"></div>
+          <div class="palco-cantor">
+            Cantando como <b id="palcoCantorNome"></b>
+            <button id="btnTrocarNome" type="button">trocar</button>
+          </div>
         </div>
       </div>
 
@@ -176,7 +190,6 @@
 
       <div class="palco-controles">
         <select id="listaMusicas"></select>
-        <input type="text" id="nomeUsuario" placeholder="Seu nome">
         <div class="botoes">
           <button id="btnGravar">● Gravar</button>
           <button id="btnParar" disabled>Parar</button>
@@ -192,7 +205,7 @@
         </div>
       </div>
 
-      <div id="resultado">Escolha uma música e comece a gravar!</div>
+      <div id="resultado"></div>
     </div>
   </div>
 

@@ -5,6 +5,8 @@ let linhasSincronia = [];
 let musicasInfo = {}; // slug -> { titulo, artista }
 let blobPendente = null;
 let nomeArquivoPendente = "";
+let nomeUsuarioAtual = "";
+let musicaPendenteAposNome = null;
 
 function classeCor(index) {
   return `c${index % 5}`;
@@ -40,7 +42,7 @@ async function carregarMusicas() {
       <div class="nome">${musica.titulo}</div>
       ${musica.artista ? `<div class="artista">${musica.artista}</div>` : ""}
     `;
-    card.addEventListener("click", () => abrirModal(musica.id));
+    card.addEventListener("click", () => iniciarFluxoCantar(musica.id));
     catalogo.appendChild(card);
 
     const opcao = document.createElement("option");
@@ -163,8 +165,43 @@ function carregarMusicaNoModal(musicaId) {
   const player = document.getElementById("playerMusica");
   player.src = `/musica-audio/${musicaId}`;
   player.load();
+  // Não toca automaticamente — o usuário decide quando começar, pelo botão de play.
+  sincronizarIconesEDisco();
 
   carregarSincronia(musicaId);
+}
+
+function iniciarFluxoCantar(musicaId) {
+  if (nomeUsuarioAtual) {
+    abrirModal(musicaId);
+    return;
+  }
+  musicaPendenteAposNome = musicaId || null;
+  const campo = document.getElementById("campoNomeEntrada");
+  campo.value = "";
+  document.getElementById("modalNomeFundo").classList.add("aberto");
+  campo.focus();
+}
+
+function confirmarNomeEAbrirPalco() {
+  const campo = document.getElementById("campoNomeEntrada");
+  const nome = campo.value.trim();
+  if (!nome) {
+    campo.focus();
+    return;
+  }
+  nomeUsuarioAtual = nome;
+  document.getElementById("modalNomeFundo").classList.remove("aberto");
+  abrirModal(musicaPendenteAposNome);
+}
+
+function trocarNome() {
+  musicaPendenteAposNome = document.getElementById("listaMusicas").value || musicaSelecionada;
+  const campo = document.getElementById("campoNomeEntrada");
+  campo.value = nomeUsuarioAtual;
+  document.getElementById("modalNomeFundo").classList.add("aberto");
+  campo.focus();
+  campo.select();
 }
 
 function abrirModal(musica) {
@@ -172,17 +209,16 @@ function abrirModal(musica) {
   if (musica) {
     document.getElementById("listaMusicas").value = musica;
   }
-  document.getElementById("resultado").textContent = "Escolha uma música e comece a gravar!";
+  document.getElementById("resultado").textContent = "";
+  document.getElementById("palcoCantorNome").textContent = nomeUsuarioAtual;
 
   const musicaAtual = musica || document.getElementById("listaMusicas").value;
   const player = document.getElementById("playerMusica");
   if (musicaAtual && player) {
     carregarMusicaNoModal(musicaAtual);
 
-    player.play().catch((erro) => {
-      console.warn("Não foi possível iniciar o áudio automaticamente:", erro);
-    });
-
+    player.removeEventListener("loadedmetadata", atualizarTempoExibido);
+    player.addEventListener("loadedmetadata", atualizarTempoExibido);
     player.removeEventListener("timeupdate", destacarLinhaAtual);
     player.addEventListener("timeupdate", destacarLinhaAtual);
     player.removeEventListener("timeupdate", atualizarTempoExibido);
@@ -215,12 +251,20 @@ async function iniciarGravacao() {
     audioChunks.push(evento.data);
   };
   mediaRecorder.start();
+
+  const player = document.getElementById("playerMusica");
+  player.currentTime = 0;
+  player.play().catch((erro) => {
+    console.warn("Não foi possível iniciar o instrumental junto com a gravação:", erro);
+  });
+
   document.getElementById("btnGravar").disabled = true;
   document.getElementById("btnParar").disabled = false;
 }
 
 function pararGravacao() {
   mediaRecorder.stop();
+  document.getElementById("playerMusica").pause();
 
   mediaRecorder.onstop = () => {
     blobPendente = new Blob(audioChunks, { type: "audio/wav" });
@@ -326,9 +370,11 @@ async function compartilharResultado() {
 async function confirmarEnvio() {
   if (!blobPendente) return;
 
+  document.getElementById("playerMusica").pause();
+  document.getElementById("previewGravacao").pause();
   document.getElementById("confirmacaoGravacao").style.display = "none";
 
-  const nomeUsuario = document.getElementById("nomeUsuario").value.trim() || "Anônimo";
+  const nomeUsuario = nomeUsuarioAtual || "Anônimo";
   const formData = new FormData();
   formData.append("audio", blobPendente, nomeArquivoPendente);
 
@@ -354,9 +400,11 @@ async function confirmarEnvio() {
 }
 
 function descartarGravacao() {
+  document.getElementById("playerMusica").pause();
+  document.getElementById("previewGravacao").pause();
   blobPendente = null;
   document.getElementById("confirmacaoGravacao").style.display = "none";
-  document.getElementById("resultado").textContent = "Escolha uma música e comece a gravar!";
+  document.getElementById("resultado").textContent = "";
 }
 
 /* ---------- NAVEGAÇÃO ENTRE TELAS ---------- */
@@ -469,8 +517,13 @@ async function carregarRanking() {
 
 document.getElementById("btnGravar").addEventListener("click", iniciarGravacao);
 document.getElementById("btnParar").addEventListener("click", pararGravacao);
-document.getElementById("btnAbrirModal").addEventListener("click", () => abrirModal());
-document.getElementById("btnFaixaDestaque").addEventListener("click", () => abrirModal());
+document.getElementById("btnAbrirModal").addEventListener("click", () => iniciarFluxoCantar());
+document.getElementById("btnFaixaDestaque").addEventListener("click", () => iniciarFluxoCantar());
+document.getElementById("btnConfirmarNome").addEventListener("click", confirmarNomeEAbrirPalco);
+document.getElementById("campoNomeEntrada").addEventListener("keydown", (evento) => {
+  if (evento.key === "Enter") confirmarNomeEAbrirPalco();
+});
+document.getElementById("btnTrocarNome").addEventListener("click", trocarNome);
 document.getElementById("fecharModal").addEventListener("click", fecharModal);
 document.getElementById("btnPlayPause").addEventListener("click", alternarPlayPause);
 document.getElementById("btnUsarGravacao").addEventListener("click", confirmarEnvio);
@@ -481,7 +534,13 @@ document.getElementById("btnResultadoTentarNovamente").addEventListener("click",
   trocarView("home");
   abrirModal(musicaSelecionada);
 });
-document.getElementById("btnResultadoVerHistorico").addEventListener("click", () => trocarView("perfil"));
+document.getElementById("btnResultadoVerHistorico").addEventListener("click", () => {
+  trocarView("perfil");
+  if (nomeUsuarioAtual) {
+    document.getElementById("perfilNome").value = nomeUsuarioAtual;
+    verPerfil();
+  }
+});
 document.getElementById("btnResultadoCompartilhar").addEventListener("click", compartilharResultado);
 
 document.getElementById("listaMusicas").addEventListener("change", (evento) => {
