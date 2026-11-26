@@ -684,7 +684,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 /* ---------- MODAL "PALCO" (tela de cantar reformulada) ---------- */
 
 .modal-palco {
-  max-width: 680px;
+  max-width: 860px;
   width: 94%;
   background: linear-gradient(160deg, var(--azul-900), #0A1530 70%);
   color: var(--branco);
@@ -755,10 +755,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   flex: 1;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
-  height: 230px;
-  max-height: 230px;
+  height: 288px;
+  max-height: 288px;
   padding: 18px;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   line-height: 1.7;
   scroll-behavior: smooth;
 }
@@ -772,7 +772,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .letra-sync-grande .linha-ativa {
   opacity: 1;
   color: var(--branco);
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 800;
   transform: none;
   border-left: 3px solid var(--azul-500);
