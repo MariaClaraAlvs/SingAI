@@ -110,6 +110,31 @@
         <button id="btnResultadoCompartilhar">Compartilhar resultado</button>
       </div>
     </section>
+
+    <section class="view view-processando-tela" id="view-processando">
+      <div class="resultado-topo">
+        <div class="capa resultado-capa-musica" id="processandoCapaContainer"></div>
+        <div class="resultado-info-musica">
+          <div class="resultado-musica-titulo" id="processandoMusicaTitulo"></div>
+          <div class="resultado-musica-artista" id="processandoMusicaArtista"></div>
+        </div>
+      </div>
+
+      <div class="processando-centro">
+        <div class="disco-vinil tocando"></div>
+        <h2 id="processandoTitulo">Analisando sua performance</h2>
+        <p id="processandoEtapa">Enviando áudio...</p>
+        <div class="processando-porcentagem" id="processandoPorcentagem">0%</div>
+        <div class="processando-barra">
+          <div class="processando-barra-preenchida" id="processandoBarra"></div>
+        </div>
+
+        <div class="processando-erro" id="processandoErro" style="display:none;">
+          <p id="processandoErroTexto"></p>
+          <button id="btnProcessandoVoltar" class="resultado-voltar">Voltar para o início</button>
+        </div>
+      </div>
+    </section>
   </div>
 
   <div class="painel-direito">
@@ -172,9 +197,7 @@
         <div id="letraSincronizada" class="letra-sync letra-sync-grande"></div>
 
         <div class="disco-vinil-wrap">
-          <div class="disco-vinil" id="discoVinil">
-            <div class="disco-vinil-furo"></div>
-          </div>
+          <div class="disco-vinil" id="discoVinil"></div>
         </div>
       </div>
 

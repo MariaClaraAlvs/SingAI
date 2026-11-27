@@ -1,11 +1,16 @@
 import re
 import json
+import importlib
+import threading
+import types
+from typing import Optional
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 import shutil
 import os
 import sqlite3
 import whisper
+import tqdm as _tqdm
 from jiwer import wer
 from fastapi.staticfiles import StaticFiles
 import database
@@ -21,6 +26,27 @@ def iniciar_banco():
 
 # Carrega o modelo UMA vez, quando o servidor sobe
 modelo_whisper = whisper.load_model("medium")
+
+
+# ---------- PROGRESSO REAL DO PROCESSAMENTO ----------
+# O Whisper tem uma barra de progresso interna (tqdm) que avança conforme
+# processa cada trecho do áudio. Trocamos essa barra por uma que, além de
+# avançar, avisa quantos % já foram processados. O aviso vai pra um
+# "callback" guardado por thread, então cada requisição reporta só o seu.
+PROGRESSO = {}  # id_tarefa -> {"percentual": float, "etapa": str}
+_contexto = threading.local()
+
+
+class _BarraComProgresso(_tqdm.tqdm):
+    def update(self, n=1):
+        retorno = super().update(n)
+        callback = getattr(_contexto, "callback", None)
+        if callback and self.total:
+            callback(min(1.0, self.n / self.total))
+        return retorno
+
+
+importlib.import_module("whisper.transcribe").tqdm = types.SimpleNamespace(tqdm=_BarraComProgresso)
 
 
 def normalizar(texto: str) -> str:
@@ -74,39 +100,64 @@ async def transcrever_audio(nome_arquivo: str):
     return {"arquivo": nome_arquivo, "transcricao": resultado["text"]}
 
 
+@app.get("/progresso/{id_tarefa}")
+def obter_progresso(id_tarefa: str):
+    return PROGRESSO.get(id_tarefa, {"percentual": 0, "etapa": "Iniciando..."})
+
+
+# `def` (e não `async def`) de propósito: assim o FastAPI roda esta função
+# numa thread separada e o servidor continua respondendo ao /progresso
+# enquanto o Whisper transcreve.
 @app.post("/pontuar")
-async def pontuar(nome_arquivo: str, musica_id: str, usuario: str):
-    caminho_audio = os.path.join("audios", nome_arquivo)
-    caminho_letra = os.path.join("letras", f"{musica_id}.txt")
+def pontuar(nome_arquivo: str, musica_id: str, usuario: str, id_tarefa: Optional[str] = None):
+    def avancar(percentual: float, etapa: str):
+        if id_tarefa:
+            PROGRESSO[id_tarefa] = {"percentual": round(percentual, 1), "etapa": etapa}
 
-    if not os.path.exists(caminho_letra):
-        return {"erro": f"Música '{musica_id}' não encontrada no catálogo"}
+    try:
+        caminho_audio = os.path.join("audios", nome_arquivo)
+        caminho_letra = os.path.join("letras", f"{musica_id}.txt")
 
-    resultado = modelo_whisper.transcribe(
-        caminho_audio,
-        condition_on_previous_text=False,  # evita o loop de repetição entre janelas
-        compression_ratio_threshold=2.2,   # mais sensível a detectar repetição e tentar de novo
-    )
-    transcricao = resultado["text"]
+        if not os.path.exists(caminho_letra):
+            return {"erro": f"Música '{musica_id}' não encontrada no catálogo"}
 
-    with open(caminho_letra, "r", encoding="utf-8") as f:
-        letra_referencia = f.read()
+        avancar(3, "Carregando áudio")
 
-    transcricao_protegida = colapsar_repeticoes(normalizar(transcricao))
-    erro = wer(normalizar(letra_referencia), transcricao_protegida)
-    pontuacao = max(0, (1 - erro) * 100)
-    pontuacao = round(pontuacao, 2)
+        # A transcrição ocupa de 5% a 90% da barra, proporcional ao áudio já processado
+        _contexto.callback = lambda fracao: avancar(5 + fracao * 85, "Transcrevendo sua voz")
+        resultado = modelo_whisper.transcribe(
+            caminho_audio,
+            condition_on_previous_text=False,  # evita o loop de repetição entre janelas
+            compression_ratio_threshold=2.2,   # mais sensível a detectar repetição e tentar de novo
+            verbose=False,                     # liga a barra interna de progresso do Whisper
+        )
+        _contexto.callback = None
+        transcricao = resultado["text"]
 
-    database.salvar_performance(usuario, musica_id, nome_arquivo, transcricao, pontuacao)
+        avancar(90, "Comparando com a letra")
+        with open(caminho_letra, "r", encoding="utf-8") as f:
+            letra_referencia = f.read()
 
-    return {
-        "usuario": usuario,
-        "musica_id": musica_id,
-        "transcricao": transcricao,
-        "letra_referencia": letra_referencia,
-        "wer": erro,
-        "pontuacao": pontuacao
-    }
+        transcricao_protegida = colapsar_repeticoes(normalizar(transcricao))
+        erro = wer(normalizar(letra_referencia), transcricao_protegida)
+        pontuacao = max(0, (1 - erro) * 100)
+        pontuacao = round(pontuacao, 2)
+
+        avancar(96, "Salvando seu resultado")
+        database.salvar_performance(usuario, musica_id, nome_arquivo, transcricao, pontuacao)
+
+        return {
+            "usuario": usuario,
+            "musica_id": musica_id,
+            "transcricao": transcricao,
+            "letra_referencia": letra_referencia,
+            "wer": erro,
+            "pontuacao": pontuacao
+        }
+    finally:
+        _contexto.callback = None
+        if id_tarefa:
+            PROGRESSO.pop(id_tarefa, None)
 
 
 @app.get("/musicas")

@@ -367,36 +367,131 @@ async function compartilharResultado() {
   }
 }
 
+/* ---------- TELA DE PROCESSAMENTO ---------- */
+
+let progressoExibido = 0;
+
+function novoIdDeTarefa() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function mostrarProgresso(percentual, etapa) {
+  const rotulo = document.getElementById("processandoPorcentagem");
+  const barra = document.getElementById("processandoBarra");
+
+  if (etapa) document.getElementById("processandoEtapa").textContent = etapa;
+
+  if (percentual === null || percentual === undefined) {
+    // o servidor ainda não informou o progresso: barra indeterminada, sem número inventado
+    barra.classList.add("indeterminada");
+    barra.style.width = "";
+    rotulo.textContent = "…";
+    return;
+  }
+
+  barra.classList.remove("indeterminada");
+  progressoExibido = Math.max(progressoExibido, Math.min(100, percentual)); // nunca volta atrás
+  barra.style.width = `${progressoExibido}%`;
+  rotulo.textContent = `${Math.round(progressoExibido)}%`;
+}
+
+function abrirTelaProcessamento() {
+  const info = musicasInfo[musicaSelecionada] || {};
+  const letraInicial = (info.titulo || musicaSelecionada).charAt(0).toUpperCase();
+
+  document.getElementById("processandoCapaContainer").innerHTML =
+    `<img src="/static/capas/${musicaSelecionada}.jpg" alt="${letraInicial}" onerror="handleCapaError(this, '${letraInicial}')">`;
+  document.getElementById("processandoMusicaTitulo").textContent = info.titulo || musicaSelecionada;
+  document.getElementById("processandoMusicaArtista").textContent = info.artista || "";
+
+  document.getElementById("processandoTitulo").textContent = "Analisando sua performance";
+  document.getElementById("processandoErro").style.display = "none";
+  progressoExibido = 0;
+  mostrarProgresso(0, "Enviando áudio...");
+
+  fecharModal();
+  trocarView("processando");
+}
+
+function mostrarErroProcessamento(mensagem) {
+  document.getElementById("processandoTitulo").textContent = "Não deu certo";
+  document.getElementById("processandoEtapa").textContent = "";
+  document.getElementById("processandoErroTexto").textContent = mensagem;
+  document.getElementById("processandoErro").style.display = "block";
+  document.getElementById("processandoBarra").classList.remove("indeterminada");
+}
+
+function acompanharProgresso(idTarefa) {
+  let ativo = true;
+
+  async function consultar() {
+    if (!ativo) return;
+    try {
+      const resposta = await fetch(`/progresso/${encodeURIComponent(idTarefa)}`);
+      if (resposta.ok) {
+        const dados = await resposta.json();
+        if (ativo && typeof dados.percentual === "number") {
+          mostrarProgresso(dados.percentual, dados.etapa);
+        }
+      }
+    } catch (erro) {
+      // sem resposta agora; tenta de novo no próximo ciclo
+    }
+    if (ativo) setTimeout(consultar, 500);
+  }
+
+  consultar();
+  return () => { ativo = false; };
+}
+
 async function confirmarEnvio() {
   if (!blobPendente) return;
 
   document.getElementById("playerMusica").pause();
   document.getElementById("previewGravacao").pause();
   document.getElementById("confirmacaoGravacao").style.display = "none";
+  document.getElementById("resultado").textContent = "";
 
   const nomeUsuario = nomeUsuarioAtual || "Anônimo";
+  const idTarefa = novoIdDeTarefa();
   const formData = new FormData();
   formData.append("audio", blobPendente, nomeArquivoPendente);
 
-  document.getElementById("resultado").textContent = "Enviando áudio...";
+  abrirTelaProcessamento();
+  let pararAcompanhamento = null;
 
-  const respostaGravar = await fetch("/gravar", {
-    method: "POST",
-    body: formData,
-  });
-  const dadosGravar = await respostaGravar.json();
+  try {
+    const respostaGravar = await fetch("/gravar", {
+      method: "POST",
+      body: formData,
+    });
+    if (!respostaGravar.ok) throw new Error("Falha ao enviar o áudio.");
+    const dadosGravar = await respostaGravar.json();
 
-  document.getElementById("resultado").textContent = "Calculando pontuação...";
+    mostrarProgresso(null, "Calculando pontuação...");
+    pararAcompanhamento = acompanharProgresso(idTarefa);
 
-  const respostaPontuar = await fetch(
-    `/pontuar?nome_arquivo=${dadosGravar.arquivo}&musica_id=${musicaSelecionada}&usuario=${encodeURIComponent(nomeUsuario)}`,
-    { method: "POST" }
-  );
-  const resultado = await respostaPontuar.json();
+    const respostaPontuar = await fetch(
+      `/pontuar?nome_arquivo=${dadosGravar.arquivo}&musica_id=${musicaSelecionada}&usuario=${encodeURIComponent(nomeUsuario)}&id_tarefa=${encodeURIComponent(idTarefa)}`,
+      { method: "POST" }
+    );
+    if (!respostaPontuar.ok) throw new Error("Falha ao calcular a pontuação.");
+    const resultado = await respostaPontuar.json();
+    if (resultado.erro) throw new Error(resultado.erro);
 
-  blobPendente = null;
-  carregarHistorico();
-  exibirTelaResultado(resultado);
+    pararAcompanhamento();
+    pararAcompanhamento = null;
+    mostrarProgresso(100, "Pronto!");
+    await new Promise((resolver) => setTimeout(resolver, 500));
+
+    blobPendente = null;
+    carregarHistorico();
+    exibirTelaResultado(resultado);
+  } catch (erro) {
+    if (pararAcompanhamento) pararAcompanhamento();
+    mostrarErroProcessamento(erro.message || "Algo deu errado. Tente gravar novamente.");
+  }
 }
 
 function descartarGravacao() {
@@ -425,6 +520,36 @@ function trocarView(nomeView) {
 
 /* ---------- TELA DE PERFIL ---------- */
 
+function escaparHTML(texto) {
+  return String(texto).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function tituloMusica(musicaId) {
+  const info = musicasInfo[musicaId];
+  return info && info.titulo ? info.titulo : musicaId.replace(/_/g, " ");
+}
+
+function lerData(texto) {
+  if (!texto) return null;
+  const data = new Date(String(texto).replace(" ", "T"));
+  return isNaN(data.getTime()) ? null : data;
+}
+
+function nivelDoCantor(melhor) {
+  if (melhor >= 90) return "Lenda do karaokê";
+  if (melhor >= 70) return "Estrela";
+  if (melhor >= 50) return "Promessa";
+  return "Iniciante";
+}
+
+function classeNota(pontuacao) {
+  if (pontuacao >= 70) return "nota-alta";
+  if (pontuacao >= 50) return "nota-media";
+  return "nota-baixa";
+}
+
+const ICONE_ESTRELA = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`;
+
 async function verPerfil() {
   const nome = document.getElementById("perfilNome").value.trim();
   const container = document.getElementById("perfilResultado");
@@ -440,47 +565,146 @@ async function verPerfil() {
   const dados = await resposta.json();
 
   if (dados.historico.length === 0) {
-    container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para "${nome}". Confira se o nome foi digitado do mesmo jeito usado ao gravar.</p>`;
+    container.innerHTML = `<p class="mensagem-vazia">Nenhuma performance encontrada para "${escaparHTML(nome)}". Confira se o nome foi digitado do mesmo jeito usado ao gravar.</p>`;
     return;
   }
 
-  const pontuacoes = dados.historico.map((item) => item.pontuacao);
+  // Posição no ranking (opcional: se a consulta falhar, o perfil aparece sem ela)
+  let posicaoRanking = null;
+  try {
+    const respostaRanking = await fetch("/ranking?limite=100");
+    const dadosRanking = await respostaRanking.json();
+    const indice = dadosRanking.ranking.findIndex((r) => r.usuario.toLowerCase() === nome.toLowerCase());
+    if (indice >= 0) posicaoRanking = indice + 1;
+  } catch (erro) {
+    posicaoRanking = null;
+  }
+
+  const historico = dados.historico;
+  const pontuacoes = historico.map((item) => item.pontuacao);
   const total = pontuacoes.length;
   const melhor = Math.max(...pontuacoes);
+  const indiceMelhor = pontuacoes.indexOf(melhor);
   const media = (pontuacoes.reduce((soma, p) => soma + p, 0) / total).toFixed(2);
+  const musicasDiferentes = new Set(historico.map((item) => item.musica_id)).size;
 
-  let html = `
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-valor">${total}</div>
-        <div class="stat-label">Performances</div>
+  // Ordem cronológica (da mais antiga para a mais recente) para o gráfico de evolução
+  const todasComData = historico.every((item) => lerData(item.data));
+  const cronologico = todasComData
+    ? [...historico].sort((a, b) => lerData(a.data) - lerData(b.data))
+    : [...historico].reverse();
+
+  const primeiraData = todasComData ? lerData(cronologico[0].data) : null;
+  const desde = primeiraData ? `Cantando desde ${primeiraData.toLocaleDateString("pt-BR")}` : `${total} ${total === 1 ? "performance" : "performances"} registradas`;
+
+  // Evolução: até as 10 performances mais recentes
+  const recentes = cronologico.slice(-10);
+  const indiceMelhorRecente = recentes.reduce((m, item, i) => (item.pontuacao > recentes[m].pontuacao ? i : m), 0);
+  const barrasHTML = recentes
+    .map((item, i) => {
+      const data = lerData(item.data);
+      const rotulo = data ? data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : `#${i + 1}`;
+      return `
+        <div class="evolucao-coluna" title="${escaparHTML(tituloMusica(item.musica_id))}">
+          <div class="evolucao-valor">${Math.round(item.pontuacao)}%</div>
+          <div class="evolucao-trilho">
+            <div class="evolucao-barra ${i === indiceMelhorRecente ? "recorde" : ""}" style="height:${Math.max(3, item.pontuacao)}%"></div>
+          </div>
+          <div class="evolucao-rotulo">${rotulo}</div>
+        </div>`;
+    })
+    .join("");
+
+  // Conquistas calculadas a partir do histórico (nada novo no banco)
+  const conquistas = [
+    { nome: "Estreou no palco", dica: "Fez a 1ª performance", ok: total >= 1 },
+    { nome: "Pegando o ritmo", dica: "5 performances", ok: total >= 5 },
+    { nome: "Eclético", dica: "3 músicas diferentes", ok: musicasDiferentes >= 3 },
+    { nome: "Promessa", dica: "Chegou a 50%", ok: melhor >= 50 },
+    { nome: "Estrela", dica: "Chegou a 70%", ok: melhor >= 70 },
+    { nome: "Redondinho", dica: "Chegou a 90%", ok: melhor >= 90 },
+  ];
+  const conquistasHTML = conquistas
+    .map(
+      (c) => `
+      <div class="conquista ${c.ok ? "conquistada" : ""}">
+        <div class="conquista-icone">${ICONE_ESTRELA}</div>
+        <div>
+          <div class="conquista-nome">${c.nome}</div>
+          <div class="conquista-dica">${c.dica}</div>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  const listaHTML = historico
+    .map((item, index) => {
+      const data = lerData(item.data);
+      const info = musicasInfo[item.musica_id] || {};
+      const letra = tituloMusica(item.musica_id).charAt(0).toUpperCase();
+      return `
+      <div class="perfil-hist-item">
+        ${capaHTML(item.musica_id, escaparHTML(letra), index, "perfil-capa")}
+        <div class="perfil-hist-info">
+          <div class="perfil-hist-nome">
+            ${escaparHTML(tituloMusica(item.musica_id))}
+            ${index === indiceMelhor ? `<span class="perfil-tag-recorde">Recorde</span>` : ""}
+          </div>
+          <div class="perfil-hist-sub">${escaparHTML([info.artista, data ? data.toLocaleDateString("pt-BR") : ""].filter(Boolean).join(" · "))}</div>
+          <div class="perfil-barra"><div class="perfil-barra-preenchida" style="width:${item.pontuacao}%"></div></div>
+        </div>
+        <div class="perfil-nota ${classeNota(item.pontuacao)}">${item.pontuacao}%</div>
+      </div>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="perfil-hero">
+      <div class="perfil-avatar">${escaparHTML(nome.charAt(0).toUpperCase())}</div>
+      <div class="perfil-hero-info">
+        <div class="perfil-hero-nome">${escaparHTML(nome)}</div>
+        <div class="perfil-hero-sub">${desde}</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-valor">${melhor}%</div>
-        <div class="stat-label">Melhor pontuação</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-valor">${media}%</div>
-        <div class="stat-label">Média</div>
+      <div class="perfil-selos">
+        <span class="perfil-selo perfil-selo-nivel">${nivelDoCantor(melhor)}</span>
+        ${posicaoRanking ? `<span class="perfil-selo">#${posicaoRanking} no ranking</span>` : ""}
       </div>
     </div>
-    <div class="perfil-lista-titulo">Histórico de ${nome}</div>
-  `;
 
-  dados.historico.forEach((item, index) => {
-    html += `
-      <div class="historico-item">
-        ${capaHTML(item.musica_id, item.musica_id.charAt(0).toUpperCase(), index, "historico-capa")}
-        <div class="historico-info">
-          <div class="historico-nome">${item.musica_id.replace(/_/g, " ")}</div>
-          <div class="barra"><div class="barra-preenchida ${classeCor(index)}" style="width:${item.pontuacao}%"></div></div>
-        </div>
-        <div class="score">${item.pontuacao}%</div>
+    <div class="perfil-stats">
+      <div class="perfil-stat">
+        <div class="perfil-stat-valor">${total}</div>
+        <div class="perfil-stat-label">Performances</div>
       </div>
-    `;
-  });
+      <div class="perfil-stat">
+        <div class="perfil-stat-valor">${melhor}%</div>
+        <div class="perfil-stat-label">Melhor pontuação</div>
+        <div class="perfil-stat-sub">${escaparHTML(tituloMusica(historico[indiceMelhor].musica_id))}</div>
+      </div>
+      <div class="perfil-stat">
+        <div class="perfil-stat-valor">${media}%</div>
+        <div class="perfil-stat-label">Média</div>
+      </div>
+      <div class="perfil-stat">
+        <div class="perfil-stat-valor">${musicasDiferentes}</div>
+        <div class="perfil-stat-label">${musicasDiferentes === 1 ? "Música diferente" : "Músicas diferentes"}</div>
+      </div>
+    </div>
 
-  container.innerHTML = html;
+    <div class="perfil-grid">
+      <div class="perfil-card">
+        <div class="perfil-card-titulo">Evolução</div>
+        <div class="evolucao">${barrasHTML}</div>
+      </div>
+      <div class="perfil-card">
+        <div class="perfil-card-titulo">Conquistas</div>
+        <div class="conquistas">${conquistasHTML}</div>
+      </div>
+    </div>
+
+    <div class="perfil-lista-titulo">Histórico de ${escaparHTML(nome)}</div>
+    <div class="perfil-hist">${listaHTML}</div>
+  `;
 }
 
 /* ---------- TELA DE RANKING ---------- */
@@ -497,20 +721,39 @@ async function carregarRanking() {
     return;
   }
 
-  const medalhas = ["ouro", "prata", "bronze"];
+  const escapar = escaparHTML;
 
-  container.innerHTML = "";
-  dados.ranking.forEach((item, index) => {
-    const classeMedalha = medalhas[index] || "";
-    const div = document.createElement("div");
-    div.className = "ranking-item";
-    div.innerHTML = `
-      <div class="ranking-pos ${classeMedalha}">${index + 1}</div>
-      <div class="ranking-nome">${item.usuario}</div>
-      <div class="ranking-nota">${item.melhor_pontuacao}%</div>
-    `;
-    container.appendChild(div);
-  });
+  const coroaSVG = `<svg class="podio-coroa" width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5L3 7z"/></svg>`;
+
+  const montarLugar = (item, posicao) => `
+    <div class="podio-lugar podio-${posicao}">
+      ${posicao === 1 ? coroaSVG : ""}
+      <div class="podio-avatar">${escapar(item.usuario.charAt(0).toUpperCase())}</div>
+      <div class="podio-nome">${escapar(item.usuario)}</div>
+      <div class="podio-nota">${item.melhor_pontuacao}%</div>
+      <div class="podio-degrau"><span>${posicao}</span></div>
+    </div>`;
+
+  const ranking = dados.ranking;
+  // ordem visual do pódio: 2º à esquerda, 1º no centro, 3º à direita
+  const ordemPodio = [1, 0, 2].filter((i) => ranking[i]);
+
+  let html = `<div class="podio">${ordemPodio.map((i) => montarLugar(ranking[i], i + 1)).join("")}</div>`;
+
+  if (ranking.length > 3) {
+    html += `<div class="ranking-demais"><div class="ranking-subtitulo">Demais posições</div>`;
+    ranking.slice(3).forEach((item, i) => {
+      html += `
+        <div class="ranking-item">
+          <div class="ranking-pos">${i + 4}</div>
+          <div class="ranking-nome">${escapar(item.usuario)}</div>
+          <div class="ranking-nota">${item.melhor_pontuacao}%</div>
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
 }
 
 /* ---------- EVENTOS ---------- */
@@ -530,6 +773,7 @@ document.getElementById("btnUsarGravacao").addEventListener("click", confirmarEn
 document.getElementById("btnDescartarGravacao").addEventListener("click", descartarGravacao);
 
 document.getElementById("btnVoltarInicio").addEventListener("click", () => trocarView("home"));
+document.getElementById("btnProcessandoVoltar").addEventListener("click", () => trocarView("home"));
 document.getElementById("btnResultadoTentarNovamente").addEventListener("click", () => {
   trocarView("home");
   abrirModal(musicaSelecionada);
